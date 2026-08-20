@@ -1,0 +1,27 @@
+# Dependencias
+node_modules/
+
+# Build / compilados
+dist/
+*.tsbuildinfo
+
+# Entorno y secretos -- NUNCA commitear
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+*.pfx
+certs/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Configuracion personal del editor
+.vscode/
+
+# Sistema operativo
+.DS_Store
