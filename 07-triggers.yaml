@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Swift SQS Connector — Triggers (7/7)
+  Configura el trigger SQS→message-sender y el async invoke
+  config del message-dispatcher.
+  Importa exports de: 03-sqs, 05-lambdas.
+
+  Stack name recomendado: swift-sqs-{env}-triggers
+  Deploy order: 7 de 7 — depende de: 03-sqs, 05-lambdas
+
+  Recursos:
+    EventSourceMapping: cola outbound del core → message-sender
+    EventInvokeConfig:  async retries + DLQ destination para dispatcher
+
+Parameters:
+  Environment:
+    Type: String
+    Default: sandbox
+    AllowedValues: [sandbox, test, prod]
+
+  CoreOutboundQueueArn:
+    Type: String
+    Description: >
+      ARN de la cola SQS outbound del core bancario.
+      Debe coincidir con el CoreOutboundQueueName del stack 03-sqs.
+      Formato: arn:aws:sqs:{region}:{account}:{queue-name}
+
+  SenderBatchSize:
+    Type: Number
+    Default: 50
+    MinValue: 1
+    MaxValue: 10000
+    Description: Número de mensajes SQS por invocación del sender
+
+  SenderBatchingWindowSeconds:
+    Type: Number
+    Default: 5
+    MinValue: 0
+    MaxValue: 300
+    Description: Tiempo máximo de espera para acumular mensajes en un batch
+
+  SenderMaxConcurrency:
+    Type: Number
+    Default: 5
+    MinValue: 2
+    MaxValue: 1000
+    Description: Máximo de invocaciones paralelas del message-sender
+
+  DispatcherMaxRetries:
+    Type: Number
+    Default: 2
+    MinValue: 0
+    MaxValue: 2
+    Description: Reintentos async del dispatcher antes de ir a la DLQ
+
+Resources:
+
+  # ── SQS → message-sender ──────────────────────────────────────────────────
+  # El core publica mensajes MT/MX en texto plano en la cola outbound.
+  # Este mapping dispara el message-sender automáticamente.
+
+  MessageSenderEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !Ref CoreOutboundQueueArn
+      FunctionName:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-message-sender-arn'
+      BatchSize: !Ref SenderBatchSize
+      MaximumBatchingWindowInSeconds: !Ref SenderBatchingWindowSeconds
+      # ReportBatchItemFailures: reintenta solo los mensajes fallidos del batch
+      # en lugar de todo el batch completo
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+      ScalingConfig:
+        MaximumConcurrency: !Ref SenderMaxConcurrency
+
+  # ── Async config del message-dispatcher ───────────────────────────────────
+  # El poller invoca al dispatcher de forma asíncrona (InvocationType=Event).
+  # Si el dispatcher falla tras N reintentos, el mensaje va a la DLQ.
+
+  MessageDispatcherAsyncConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-message-dispatcher-name'
+      Qualifier: $LATEST
+      MaximumRetryAttempts: !Ref DispatcherMaxRetries
+      DestinationConfig:
+        OnFailure:
+          Destination:
+            Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dlq-arn'
+
+Outputs:
+
+  EventSourceMappingId:
+    Description: ID del EventSourceMapping SQS → message-sender
+    Value: !Ref MessageSenderEventSourceMapping
+
+  DispatcherRetryConfig:
+    Description: Configuración de reintentos del dispatcher
+    Value: !Sub 'MaxRetries=${DispatcherMaxRetries} → DLQ en fallo'
+
+  SenderBatchConfig:
+    Description: Configuración del batch del sender
+    Value: !Sub 'BatchSize=${SenderBatchSize} · Window=${SenderBatchingWindowSeconds}s · MaxConcurrency=${SenderMaxConcurrency}'

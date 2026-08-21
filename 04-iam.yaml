@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Swift SQS Connector — IAM (4/7)
+  Rol de ejecución Lambda con permisos mínimos necesarios.
+  Importa ARNs de los stacks: 01-kms, 02-dynamodb, 03-sqs.
+
+  Stack name recomendado: swift-sqs-{env}-iam
+  Deploy order: 4 de 7 — depende de: 01-kms, 02-dynamodb, 03-sqs
+
+Parameters:
+  Environment:
+    Type: String
+    Default: sandbox
+    AllowedValues: [sandbox, test, prod]
+
+  CoreFileActQueueName:
+    Type: String
+    Default: ''
+    Description: Nombre de la cola FileAct del core (opcional)
+
+Conditions:
+  HasFileActQueue: !Not [!Equals [!Ref CoreFileActQueueName, '']]
+
+Resources:
+
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'swift-sqs-${Environment}-lambda-role'
+      Description: Rol de ejecución compartido por las 4 Lambdas del conector Swift SQS
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub 'swift-sqs-${Environment}-lambda-policy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+
+              # ── DynamoDB — leer y escribir la tabla del store ─────────────
+              - Sid: DynamoDBReadWrite
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                Resource:
+                  - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dynamo-table-arn'
+
+              # ── KMS — cifrar y descifrar campos sensibles ─────────────────
+              - Sid: KMSEncryptDecrypt
+                Effect: Allow
+                Action:
+                  - kms:Encrypt
+                  - kms:Decrypt
+                  - kms:GenerateDataKey
+                Resource:
+                  - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-kms-key-arn'
+
+              # ── SQS — publicar en colas inbound del core ──────────────────
+              - Sid: SQSPublishCoreInbound
+                Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-core-mt-arn'
+                  - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-core-mx-arn'
+                  - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dlq-arn'
+                  - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-send-results-arn'
+
+              # ── SQS — consumir cola outbound del core ─────────────────────
+              - Sid: SQSConsumeOutbound
+                Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:ChangeMessageVisibility
+                Resource:
+                  - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-core-outbound-arn'
+
+              # ── SQS — FileAct (opcional) ──────────────────────────────────
+              - !If
+                - HasFileActQueue
+                - Sid: SQSPublishFileAct
+                  Effect: Allow
+                  Action:
+                    - sqs:SendMessage
+                  Resource:
+                    - !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${CoreFileActQueueName}'
+                - !Ref AWS::NoValue
+
+              # ── Lambda — poller invoca dispatcher async ───────────────────
+              # El ARN del dispatcher se agrega como política inline
+              # después del deploy del stack 05-lambdas usando una
+              # política separada para evitar dependencia circular.
+              # Ver: 05-lambdas.yaml → LambdaInvokePolicy
+              - Sid: CloudWatchLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/swift-sqs-${Environment}-*'
+
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: iam
+
+Outputs:
+
+  LambdaRoleArn:
+    Description: ARN del rol de ejecución Lambda
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-lambda-role-arn'
+
+  LambdaRoleName:
+    Description: Nombre del rol de ejecución Lambda
+    Value: !Ref LambdaExecutionRole
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-lambda-role-name'

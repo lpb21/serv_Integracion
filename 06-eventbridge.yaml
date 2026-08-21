@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Swift SQS Connector — EventBridge (6/7)
+  Schedules que disparan token-refresher y message-poller.
+  Importa exports de: 05-lambdas.
+
+  Stack name recomendado: swift-sqs-{env}-eventbridge
+  Deploy order: 6 de 7 — depende de: 05-lambdas
+
+  Reglas:
+    rate(50 minutes) → token-refresher
+    rate(N minutes)  → message-poller (configurable)
+
+Parameters:
+  Environment:
+    Type: String
+    Default: sandbox
+    AllowedValues: [sandbox, test, prod]
+
+  PollingIntervalMinutes:
+    Type: Number
+    Default: 2
+    MinValue: 1
+    MaxValue: 60
+    Description: Intervalo de polling a Swift en minutos
+
+Resources:
+
+  # ── Schedule: token-refresher ─────────────────────────────────────────────
+
+  TokenRefreshRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub 'swift-sqs-${Environment}-token-refresh'
+      Description: !Sub 'Refresca el Bearer token de Swift cada 50 min (${Environment})'
+      ScheduleExpression: rate(50 minutes)
+      State: ENABLED
+      Targets:
+        - Id: TokenRefresherTarget
+          Arn:
+            Fn::ImportValue: !Sub 'swift-sqs-${Environment}-token-refresher-arn'
+
+  TokenRefreshPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-token-refresher-arn'
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt TokenRefreshRule.Arn
+
+  # ── Schedule: message-poller ──────────────────────────────────────────────
+
+  MessagePollerRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub 'swift-sqs-${Environment}-message-poller'
+      Description: !Sub 'Polling Swift Messaging API cada ${PollingIntervalMinutes} min (${Environment})'
+      ScheduleExpression: !Sub 'rate(${PollingIntervalMinutes} minutes)'
+      State: ENABLED
+      Targets:
+        - Id: MessagePollerTarget
+          Arn:
+            Fn::ImportValue: !Sub 'swift-sqs-${Environment}-message-poller-arn'
+
+  MessagePollerPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-message-poller-arn'
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt MessagePollerRule.Arn
+
+Outputs:
+
+  TokenRefreshRuleArn:
+    Description: ARN de la regla de refresco de token
+    Value: !GetAtt TokenRefreshRule.Arn
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-token-refresh-rule-arn'
+
+  MessagePollerRuleArn:
+    Description: ARN de la regla de polling
+    Value: !GetAtt MessagePollerRule.Arn
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-poller-rule-arn'
+
+  PollingInterval:
+    Description: Intervalo de polling configurado
+    Value: !Sub '${PollingIntervalMinutes} minutos'

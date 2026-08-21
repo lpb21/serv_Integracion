@@ -1,0 +1,73 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Swift SQS Connector — DynamoDB (2/7)
+  Tabla on-demand cifrada con KMS para almacenar
+  credenciales Swift y Bearer token.
+
+  Stack name recomendado: swift-sqs-{env}-dynamodb
+  Deploy order: 2 de 7 — depende de: 01-kms
+
+  Estructura de la tabla:
+    pk="credentials" → consumer_key (claro) + campos cifrados con KMS
+    pk="token"       → access_token cifrado + expires_in + obtained_at
+
+Parameters:
+  Environment:
+    Type: String
+    Default: sandbox
+    AllowedValues: [sandbox, test, prod]
+
+Resources:
+
+  SwiftStoreTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain       # protege contra borrado accidental del stack
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub 'swift-sqs-${Environment}-store'
+      BillingMode: PAY_PER_REQUEST
+      TableClass: STANDARD
+      DeletionProtectionEnabled: true
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+      # Cifrado en reposo con clave KMS del stack 01-kms
+      SSESpecification:
+        SSEEnabled: true
+        SSEType: KMS
+        KMSMasterKeyId:
+          Fn::ImportValue: !Sub 'swift-sqs-${Environment}-kms-key-arn'
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: dynamodb
+
+Outputs:
+
+  TableName:
+    Description: Nombre de la tabla DynamoDB
+    Value: !Ref SwiftStoreTable
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-dynamo-table-name'
+
+  TableArn:
+    Description: ARN de la tabla DynamoDB
+    Value: !GetAtt SwiftStoreTable.Arn
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-dynamo-table-arn'
+
+  SetupInstructions:
+    Description: Comando para cargar credenciales después del deploy
+    Value: !Sub >
+      DYNAMODB_TABLE_NAME=${SwiftStoreTable}
+      KMS_KEY_ID=alias/swift-sqs-${Environment}-store
+      SWIFT_ENV=${Environment}
+      node scripts/setup-credentials.mjs

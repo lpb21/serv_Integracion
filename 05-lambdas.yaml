@@ -1,0 +1,279 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Swift SQS Connector — Lambdas (5/7)
+  Las 4 funciones Lambda del conector con sus Log Groups.
+  Importa exports de: 01-kms, 02-dynamodb, 03-sqs, 04-iam.
+
+  Stack name recomendado: swift-sqs-{env}-lambdas
+  Deploy order: 5 de 7 — depende de: 01-kms, 02-dynamodb, 03-sqs, 04-iam
+
+  Lambdas:
+    token-refresher    — obtiene y rota el Bearer token de Swift
+    message-poller     — polling GET /distributions cada N minutos
+    message-dispatcher — descarga distribución y publica en SQS del core
+    message-sender     — parsea MT/MX del core y envía a Swift
+
+Parameters:
+  Environment:
+    Type: String
+    Default: sandbox
+    AllowedValues: [sandbox, test, prod]
+
+  DeployBucketName:
+    Type: String
+    Description: Bucket S3 donde están los ZIPs de las Lambdas
+
+  MaxConcurrentDispatchers:
+    Type: Number
+    Default: 25
+    Description: Máximo de dispatchers invocados en paralelo por el poller
+
+  FileActCallbackUrl:
+    Type: String
+    Default: ''
+    Description: URL de callback para transferencias FileAct asíncronas (opcional)
+
+  CoreFileActQueueName:
+    Type: String
+    Default: ''
+    Description: Nombre de la cola FileAct del core (opcional)
+
+Conditions:
+  HasFileActQueue: !Not [!Equals [!Ref CoreFileActQueueName, '']]
+
+Resources:
+
+  # ── token-refresher ───────────────────────────────────────────────────────
+
+  TokenRefresherFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'swift-sqs-${Environment}-token-refresher'
+      Description: Obtiene Bearer token de Swift OAuth2 y lo guarda cifrado en DynamoDB
+      Runtime: nodejs22.x
+      Handler: index.handler
+      Role:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-lambda-role-arn'
+      Timeout: 30
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref DeployBucketName
+        S3Key: token-refresher.zip
+      Environment:
+        Variables:
+          SWIFT_ENV:           !Ref Environment
+          DYNAMODB_TABLE_NAME:
+            Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dynamo-table-name'
+          KMS_KEY_ID:
+            Fn::ImportValue: !Sub 'swift-sqs-${Environment}-kms-key-id'
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: lambdas
+
+  TokenRefresherLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/swift-sqs-${Environment}-token-refresher'
+      RetentionInDays: 30
+
+  # ── message-dispatcher ────────────────────────────────────────────────────
+  # Se define ANTES del poller porque el poller referencia su nombre.
+
+  MessageDispatcherFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'swift-sqs-${Environment}-message-dispatcher'
+      Description: Descarga distribución Swift, decodifica payload y publica en SQS del core
+      Runtime: nodejs22.x
+      Handler: index.handler
+      Role:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-lambda-role-arn'
+      Timeout: 120
+      MemorySize: 512
+      ReservedConcurrentExecutions: 50
+      Code:
+        S3Bucket: !Ref DeployBucketName
+        S3Key: message-dispatcher.zip
+      Environment:
+        Variables:
+          SWIFT_ENV:           !Ref Environment
+          DYNAMODB_TABLE_NAME:
+            Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dynamo-table-name'
+          KMS_KEY_ID:
+            Fn::ImportValue: !Sub 'swift-sqs-${Environment}-kms-key-id'
+          SQS_CORE_MT_INBOUND_URL:
+            Fn::ImportValue: !Sub 'swift-sqs-${Environment}-core-mt-url'
+          SQS_CORE_MX_INBOUND_URL:
+            Fn::ImportValue: !Sub 'swift-sqs-${Environment}-core-mx-url'
+          SQS_CORE_FILEACT_URL: !If
+            - HasFileActQueue
+            - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-core-fileact-url'
+            - ''
+          SQS_DLQ_URL:
+            Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dlq-url'
+          FILEACT_CALLBACK_URL: !Ref FileActCallbackUrl
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: lambdas
+
+  MessageDispatcherLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/swift-sqs-${Environment}-message-dispatcher'
+      RetentionInDays: 30
+
+  # ── message-poller ────────────────────────────────────────────────────────
+
+  MessagePollerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'swift-sqs-${Environment}-message-poller'
+      Description: Polling GET /distributions a Swift y despacha al message-dispatcher
+      Runtime: nodejs22.x
+      Handler: index.handler
+      Role:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-lambda-role-arn'
+      Timeout: 60
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref DeployBucketName
+        S3Key: message-poller.zip
+      Environment:
+        Variables:
+          SWIFT_ENV:           !Ref Environment
+          DYNAMODB_TABLE_NAME:
+            Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dynamo-table-name'
+          KMS_KEY_ID:
+            Fn::ImportValue: !Sub 'swift-sqs-${Environment}-kms-key-id'
+          DISPATCHER_FUNCTION_NAME: !Ref MessageDispatcherFunction
+          MAX_CONCURRENT_DISPATCHERS: !Ref MaxConcurrentDispatchers
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: lambdas
+
+  MessagePollerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/swift-sqs-${Environment}-message-poller'
+      RetentionInDays: 30
+
+  # ── message-sender ────────────────────────────────────────────────────────
+
+  MessageSenderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub 'swift-sqs-${Environment}-message-sender'
+      Description: Parsea MT/MX del core, construye X-SWIFT-Signature y envía a Swift
+      Runtime: nodejs22.x
+      Handler: index.handler
+      Role:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-lambda-role-arn'
+      Timeout: 60
+      MemorySize: 512
+      Code:
+        S3Bucket: !Ref DeployBucketName
+        S3Key: message-sender.zip
+      Environment:
+        Variables:
+          SWIFT_ENV:           !Ref Environment
+          DYNAMODB_TABLE_NAME:
+            Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dynamo-table-name'
+          KMS_KEY_ID:
+            Fn::ImportValue: !Sub 'swift-sqs-${Environment}-kms-key-id'
+          SQS_SEND_RESULTS_URL:
+            Fn::ImportValue: !Sub 'swift-sqs-${Environment}-send-results-url'
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: lambdas
+
+  MessageSenderLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/swift-sqs-${Environment}-message-sender'
+      RetentionInDays: 30
+
+  # ── Política inline — permite al poller invocar el dispatcher ─────────────
+  # Se define aquí (no en IAM) para evitar dependencia circular:
+  # IAM no puede referenciar ARNs de Lambdas que aún no existen.
+
+  LambdaInvokePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub 'swift-sqs-${Environment}-invoke-dispatcher'
+      Roles:
+        - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-lambda-role-name'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: InvokeDispatcher
+            Effect: Allow
+            Action:
+              - lambda:InvokeFunction
+            Resource:
+              - !GetAtt MessageDispatcherFunction.Arn
+
+Outputs:
+
+  TokenRefresherArn:
+    Description: ARN de la Lambda token-refresher
+    Value: !GetAtt TokenRefresherFunction.Arn
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-token-refresher-arn'
+
+  TokenRefresherName:
+    Description: Nombre de la Lambda token-refresher
+    Value: !Ref TokenRefresherFunction
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-token-refresher-name'
+
+  MessagePollerArn:
+    Description: ARN de la Lambda message-poller
+    Value: !GetAtt MessagePollerFunction.Arn
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-message-poller-arn'
+
+  MessagePollerName:
+    Description: Nombre de la Lambda message-poller
+    Value: !Ref MessagePollerFunction
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-message-poller-name'
+
+  MessageDispatcherArn:
+    Description: ARN de la Lambda message-dispatcher
+    Value: !GetAtt MessageDispatcherFunction.Arn
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-message-dispatcher-arn'
+
+  MessageDispatcherName:
+    Description: Nombre de la Lambda message-dispatcher
+    Value: !Ref MessageDispatcherFunction
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-message-dispatcher-name'
+
+  MessageSenderArn:
+    Description: ARN de la Lambda message-sender
+    Value: !GetAtt MessageSenderFunction.Arn
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-message-sender-arn'
+
+  MessageSenderName:
+    Description: Nombre de la Lambda message-sender
+    Value: !Ref MessageSenderFunction
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-message-sender-name'

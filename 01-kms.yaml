@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Swift SQS Connector — KMS (1/7)
+  Clave KMS con rotación automática anual para cifrar
+  credenciales Swift y Bearer token en DynamoDB.
+
+  Stack name recomendado: swift-sqs-{env}-kms
+  Deploy order: 1 de 7 — no depende de otros stacks.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: sandbox
+    AllowedValues: [sandbox, test, prod]
+    Description: Ambiente de despliegue
+
+Resources:
+
+  SwiftStoreKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Sub 'Clave KMS Swift SQS Connector (${Environment}) — cifra credenciales y token en DynamoDB'
+      EnableKeyRotation: true
+      MultiRegion: false
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          # La cuenta tiene control total de la clave
+          - Sid: RootFullAccess
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: kms
+
+  SwiftStoreKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub 'alias/swift-sqs-${Environment}-store'
+      TargetKeyId: !Ref SwiftStoreKey
+
+Outputs:
+
+  KmsKeyId:
+    Description: ID de la clave KMS
+    Value: !Ref SwiftStoreKey
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-kms-key-id'
+
+  KmsKeyArn:
+    Description: ARN de la clave KMS
+    Value: !GetAtt SwiftStoreKey.Arn
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-kms-key-arn'
+
+  KmsKeyAlias:
+    Description: Alias de la clave KMS
+    Value: !Sub 'alias/swift-sqs-${Environment}-store'
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-kms-key-alias'

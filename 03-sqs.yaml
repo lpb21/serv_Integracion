@@ -1,0 +1,155 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Swift SQS Connector — SQS (3/7)
+  Colas SQS propias del conector: DLQ y send-results.
+  Las colas del core bancario NO se crean aquí —
+  se referencian como parámetros en otros stacks.
+
+  Stack name recomendado: swift-sqs-{env}-sqs
+  Deploy order: 3 de 7 — no depende de otros stacks.
+
+  Colas del core (ya existen, solo se referencian):
+    CoreMtInboundQueueName  → mensajes FIN entrantes
+    CoreMxInboundQueueName  → mensajes MX entrantes
+    CoreOutboundQueueName   → mensajes salientes MT/MX
+    CoreFileActQueueName    → FileAct (opcional)
+
+Parameters:
+  Environment:
+    Type: String
+    Default: sandbox
+    AllowedValues: [sandbox, test, prod]
+
+  # Colas del core — se usan para exportar las URLs completas
+  CoreMtInboundQueueName:
+    Type: String
+    Description: Nombre de la cola SQS del core para mensajes MT entrantes
+
+  CoreMxInboundQueueName:
+    Type: String
+    Description: Nombre de la cola SQS del core para mensajes MX entrantes
+
+  CoreOutboundQueueName:
+    Type: String
+    Description: Nombre de la cola SQS del core para mensajes salientes
+
+  CoreFileActQueueName:
+    Type: String
+    Default: ''
+    Description: Nombre de la cola SQS del core para FileAct (opcional)
+
+Conditions:
+  HasFileActQueue: !Not [!Equals [!Ref CoreFileActQueueName, '']]
+
+Resources:
+
+  # ── DLQ del conector ─────────────────────────────────────────────────────
+  DeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'swift-sqs-${Environment}-dlq'
+      MessageRetentionPeriod: 1209600   # 14 días
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: sqs
+
+  # ── Send Results — conector notifica al core el resultado de envíos ───────
+  SendResultsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'swift-sqs-${Environment}-send-results'
+      VisibilityTimeout: 60
+      MessageRetentionPeriod: 86400    # 1 día
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DeadLetterQueue.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: sqs
+
+Outputs:
+
+  # ── DLQ ──────────────────────────────────────────────────────────────────
+  DlqUrl:
+    Description: URL de la DLQ del conector
+    Value: !Ref DeadLetterQueue
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-dlq-url'
+
+  DlqArn:
+    Description: ARN de la DLQ del conector
+    Value: !GetAtt DeadLetterQueue.Arn
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-dlq-arn'
+
+  # ── Send Results ──────────────────────────────────────────────────────────
+  SendResultsUrl:
+    Description: URL de la cola send-results
+    Value: !Ref SendResultsQueue
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-send-results-url'
+
+  SendResultsArn:
+    Description: ARN de la cola send-results
+    Value: !GetAtt SendResultsQueue.Arn
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-send-results-arn'
+
+  # ── Colas del core (ARNs construidos para el IAM stack) ──────────────────
+  CoreMtInboundArn:
+    Description: ARN de la cola MT inbound del core
+    Value: !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${CoreMtInboundQueueName}'
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-core-mt-arn'
+
+  CoreMxInboundArn:
+    Description: ARN de la cola MX inbound del core
+    Value: !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${CoreMxInboundQueueName}'
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-core-mx-arn'
+
+  CoreOutboundArn:
+    Description: ARN de la cola outbound del core
+    Value: !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${CoreOutboundQueueName}'
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-core-outbound-arn'
+
+  CoreMtInboundUrl:
+    Description: URL de la cola MT inbound del core
+    Value: !Sub 'https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/${CoreMtInboundQueueName}'
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-core-mt-url'
+
+  CoreMxInboundUrl:
+    Description: URL de la cola MX inbound del core
+    Value: !Sub 'https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/${CoreMxInboundQueueName}'
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-core-mx-url'
+
+  CoreOutboundUrl:
+    Description: URL de la cola outbound del core
+    Value: !Sub 'https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/${CoreOutboundQueueName}'
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-core-outbound-url'
+
+  CoreFileActArn:
+    Condition: HasFileActQueue
+    Description: ARN de la cola FileAct del core (si está configurada)
+    Value: !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${CoreFileActQueueName}'
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-core-fileact-arn'
+
+  CoreFileActUrl:
+    Condition: HasFileActQueue
+    Description: URL de la cola FileAct del core (si está configurada)
+    Value: !Sub 'https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/${CoreFileActQueueName}'
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-core-fileact-url'
