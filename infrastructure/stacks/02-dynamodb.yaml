@@ -14,8 +14,8 @@ Description: >
 Parameters:
   Environment:
     Type: String
-    Default: sandbox
-    AllowedValues: [sandbox, test, prod]
+    Default: dev
+    AllowedValues: [dev, qa, prod]
 
 Resources:
 
