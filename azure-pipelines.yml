@@ -1,0 +1,218 @@
+# ============================================================================
+# Pipeline de despliegue — Swift SQS Connector (infraestructura)
+# ============================================================================
+# Despliega los stacks de CloudFormation en AWS, EN ORDEN (01 -> 07).
+# El orden es obligatorio y necesario: cada stack importa Exports del anterior
+# (Fn::ImportValue), asi que no pueden desplegarse en paralelo ni desordenados.
+#
+# REQUISITOS antes de ejecutar:
+#   1. La extension "AWS Toolkit for Azure DevOps" debe estar instalada en la
+#      organizacion (provee la tarea CloudFormationCreateOrUpdateStack).
+#   2. Debe existir un "AWS Service Connection" configurado en Azure DevOps
+#      con permisos para desplegar CloudFormation en la cuenta destino.
+#      -> Reemplazar el placeholder AWS_SERVICE_CONNECTION mas abajo.
+#   3. Confirmar la region de despliegue (placeholder AWS_REGION).
+#
+# NOTA sobre los stacks 05-07:
+#   Los stacks de Lambdas (05), EventBridge (06) y Triggers (07) dependen del
+#   CODIGO de las Lambdas (empaquetado y subido). Mientras tanto,
+#   se quedan COMENTADOS al final de este archivo. Cuando el codigo este listo,
+#   los descomento y se agrego el paso de empaquetado/subida previo.
+# ============================================================================
+
+# El disparo esta MANUAL. No se ejecuta solo con push/merge, para evitar despliegues
+# accidentales. Se dispara a proposito desde la interfaz de Azure DevOps.
+trigger: none
+pr: none
+
+# Parametros que se eligen al ejecutar el pipeline manualmente.
+parameters:
+  - name: environment
+    displayName: Ambiente de despliegue
+    type: string
+    default: dev
+    values:
+      - dev
+      - qa
+      - prod
+
+# Variables reutilizables. Reemplazar los placeholders marcados con <<< >>>.
+variables:
+  # Nombre EXACTO del AWS Service Connection configurado en Azure DevOps.
+  awsServiceConnection: 'bank-2027_banistmo_desarrollo_swift-dev-aws'
+
+  # Region de AWS donde se despliegan los stacks.
+  awsRegion: 'us-east-1'
+
+  # Prefijo de los nombres de stack, segun convencion de las plantillas:
+  # swift-sqs-{env}-{stack}
+  stackPrefix: 'swift-sqs-${{ parameters.environment }}'
+
+  # Ruta a las plantillas dentro del repo.
+  templatesPath: 'infrastructure/stacks'
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+  - stage: DeployBaseInfrastructure
+    displayName: 'Infraestructura base (01-04)'
+    jobs:
+      - job: DeployStacks
+        displayName: 'Desplegar stacks base en orden'
+        steps:
+
+          # -- 01 - KMS ------------------------------------------------------
+          - task: CloudFormationCreateOrUpdateStack@1
+            displayName: '01 - KMS'
+            inputs:
+              awsCredentials: '$(awsServiceConnection)'
+              regionName: '$(awsRegion)'
+              stackName: '$(stackPrefix)-kms'
+              templateSource: 'file'
+              templateFile: '$(templatesPath)/01-kms.yaml'
+              onFailure: 'DELETE'
+              parametersSource: 'inline'
+              parameters: |
+                [
+                  { "ParameterKey": "Environment", "ParameterValue": "${{ parameters.environment }}" }
+                ]
+              tags: |
+                [
+                  { "Key": "Project", "Value": "swift-sqs-connector" },
+                  { "Key": "Environment", "Value": "${{ parameters.environment }}" },
+                  { "Key": "DeployedBy", "Value": "azure-pipelines" }
+                ]
+
+          # -- 02 - DynamoDB (depende de 01) ---------------------------------
+          - task: CloudFormationCreateOrUpdateStack@1
+            displayName: '02 - DynamoDB'
+            inputs:
+              awsCredentials: '$(awsServiceConnection)'
+              regionName: '$(awsRegion)'
+              stackName: '$(stackPrefix)-dynamodb'
+              templateSource: 'file'
+              templateFile: '$(templatesPath)/02-dynamodb.yaml'
+              onFailure: 'DELETE'
+              parametersSource: 'inline'
+              parameters: |
+                [
+                  { "ParameterKey": "Environment", "ParameterValue": "${{ parameters.environment }}" }
+                ]
+              tags: |
+                [
+                  { "Key": "Project", "Value": "swift-sqs-connector" },
+                  { "Key": "Environment", "Value": "${{ parameters.environment }}" },
+                  { "Key": "DeployedBy", "Value": "azure-pipelines" }
+                ]
+
+          # -- 03 - SQS ------------------------------------------------------
+          - task: CloudFormationCreateOrUpdateStack@1
+            displayName: '03 - SQS'
+            inputs:
+              awsCredentials: '$(awsServiceConnection)'
+              regionName: '$(awsRegion)'
+              stackName: '$(stackPrefix)-sqs'
+              templateSource: 'file'
+              templateFile: '$(templatesPath)/03-sqs.yaml'
+              onFailure: 'DELETE'
+              parametersSource: 'inline'
+              parameters: |
+                [
+                  { "ParameterKey": "Environment", "ParameterValue": "${{ parameters.environment }}" }
+                ]
+              tags: |
+                [
+                  { "Key": "Project", "Value": "swift-sqs-connector" },
+                  { "Key": "Environment", "Value": "${{ parameters.environment }}" },
+                  { "Key": "DeployedBy", "Value": "azure-pipelines" }
+                ]
+
+          # -- 04 - IAM (depende de 01, 02, 03) ------------------------------
+          # IMPORTANTE: los stacks que crean recursos IAM con nombre requieren
+          # reconocer la capability CAPABILITY_NAMED_IAM, o el deploy falla.
+          - task: CloudFormationCreateOrUpdateStack@1
+            displayName: '04 - IAM'
+            inputs:
+              awsCredentials: '$(awsServiceConnection)'
+              regionName: '$(awsRegion)'
+              stackName: '$(stackPrefix)-iam'
+              templateSource: 'file'
+              templateFile: '$(templatesPath)/04-iam.yaml'
+              onFailure: 'DELETE'
+              capabilities: 'CAPABILITY_NAMED_IAM'
+              parametersSource: 'inline'
+              parameters: |
+                [
+                  { "ParameterKey": "Environment", "ParameterValue": "${{ parameters.environment }}" }
+                ]
+              tags: |
+                [
+                  { "Key": "Project", "Value": "swift-sqs-connector" },
+                  { "Key": "Environment", "Value": "${{ parameters.environment }}" },
+                  { "Key": "DeployedBy", "Value": "azure-pipelines" }
+                ]
+
+# ============================================================================
+# PENDIENTE - Stacks 05, 06 y 07
+# ============================================================================
+# Estos stacks despliegan las Lambdas y su orquestacion. Requieren que el
+# CODIGO de las funciones (token-refresher, message-poller, message-dispatcher,
+# message-sender) exista, que este empaquetado y subido (un bucket S3
+# indicado por el parametro DeployBucketName del stack 05).
+#
+# Cuando el codigo este listo, el flujo sera el siguiente:
+#   1. Un paso previo que empaquete el codigo (pip install -r requirements.txt + empaquetar código y shared/ en zip).
+#   2. Un paso que suba el paquete al bucket de despliegue.
+#   3. Descomentar y completar las tareas 05, 06 y 07 abajo, en este orden.
+#
+# Plantilla de referencia para cada una (aqui se pueden ajustar los parametros segun cada stack):
+#
+#   - task: CloudFormationCreateOrUpdateStack@1
+#     displayName: '05 - Lambdas'
+#     inputs:
+#       awsCredentials: '$(awsServiceConnection)'
+#       regionName: '$(awsRegion)'
+#       stackName: '$(stackPrefix)-lambdas'
+#       templateSource: 'file'
+#       templateFile: '$(templatesPath)/05-lambdas.yaml'
+#       onFailure: 'DELETE'
+#       capabilities: 'CAPABILITY_NAMED_IAM'
+#       parametersSource: 'inline'
+#       parameters: |
+#         [
+#           { "ParameterKey": "Environment", "ParameterValue": "${{ parameters.environment }}" },
+#           { "ParameterKey": "DeployBucketName", "ParameterValue": "<<< BUCKET_DE_DESPLIEGUE >>>" }
+#         ]
+#
+#   - task: CloudFormationCreateOrUpdateStack@1
+#     displayName: '06 - EventBridge'
+#     inputs:
+#       awsCredentials: '$(awsServiceConnection)'
+#       regionName: '$(awsRegion)'
+#       stackName: '$(stackPrefix)-eventbridge'
+#       templateSource: 'file'
+#       templateFile: '$(templatesPath)/06-eventbridge.yaml'
+#       onFailure: 'DELETE'
+#       parametersSource: 'inline'
+#       parameters: |
+#         [
+#           { "ParameterKey": "Environment", "ParameterValue": "${{ parameters.environment }}" }
+#         ]
+#
+#   - task: CloudFormationCreateOrUpdateStack@1
+#     displayName: '07 - Triggers'
+#     inputs:
+#       awsCredentials: '$(awsServiceConnection)'
+#       regionName: '$(awsRegion)'
+#       stackName: '$(stackPrefix)-triggers'
+#       templateSource: 'file'
+#       templateFile: '$(templatesPath)/07-triggers.yaml'
+#       onFailure: 'DELETE'
+#       parametersSource: 'inline'
+#       parameters: |
+#         [
+#           { "ParameterKey": "Environment", "ParameterValue": "${{ parameters.environment }}" },
+#           { "ParameterKey": "CoreOutboundQueueArn", "ParameterValue": "<<< ARN_COLA_OUTBOUND_CORE >>>" }
+#         ]
+# ============================================================================
