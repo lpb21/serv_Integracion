@@ -1,0 +1,173 @@
+"""
+swift_client_outbound.py
+Cliente HTTP para envío de mensajes a Swift — operaciones outbound.
+
+Endpoints:
+  POST /fin/messages              → FIN individual
+  POST /fin/messages/batch        → FIN batch (hasta 500)
+  POST /interact/messages         → InterAct individual
+  POST /interact/messages/batch   → InterAct batch (hasta 50)
+  POST /fileact/messages          → FileAct
+"""
+
+import os
+import json
+import time
+import logging
+import urllib.request
+import urllib.error
+from typing import Optional
+
+from shared.swift_signature import build_swift_signature
+
+logger = logging.getLogger(__name__)
+
+SWIFT_ENV = os.environ.get("SWIFT_ENV", "sandbox")
+
+_BASE_URLS = {
+    "sandbox": "https://sandbox.swift.com/alliancecloud/v2",
+    "test":    "https://api-test.swiftnet.sipn.swift.com/alliancecloud/v2",
+    "prod":    "https://api.swiftnet.sipn.swift.com/alliancecloud/v2",
+}
+
+BASE_URL = _BASE_URLS[SWIFT_ENV]
+
+FIN_BATCH_MAX      = 500
+INTERACT_BATCH_MAX = 50
+
+
+def detect_service(message_type: str) -> str:
+    """
+    Detecta si un mensaje es FIN o InterAct por el message_type.
+      FIN:      fin.103, fin.202, fin.202.COV, fin.900, fin.910, apc.*
+      InterAct: pacs.008, pacs.009, camt.*, pain.*, ...
+    """
+    if not message_type:
+        raise ValueError("message_type is required")
+    if message_type.startswith("fin.") or message_type.startswith("apc."):
+        return "fin"
+    return "interAct"
+
+
+def _swift_post(
+    token: str,
+    path: str,
+    body: dict,
+    credentials: Optional[dict] = None,
+    max_retries: int = 3,
+) -> dict:
+    """HTTP POST a Swift con X-SWIFT-Signature y retry."""
+    url         = f"{BASE_URL}{path}"
+    body_string = json.dumps(body, separators=(",", ":"))
+    body_bytes  = body_string.encode()
+
+    signature = (
+        build_swift_signature(url, body_string, credentials)
+        if credentials else ""
+    )
+
+    for attempt in range(max_retries + 1):
+        req = urllib.request.Request(
+            url,
+            data=body_bytes,
+            headers={
+                "Authorization":    f"Bearer {token}",
+                "Content-Type":     "application/json",
+                "Accept":           "application/json",
+                "X-SWIFT-Signature": signature,
+            },
+            method="POST",
+        )
+
+        try:
+            with urllib.request.urlopen(req) as resp:
+                return json.loads(resp.read())
+
+        except urllib.error.HTTPError as e:
+            try:
+                error_body = json.loads(e.read())
+            except Exception:
+                error_body = {}
+
+            severity     = error_body.get("severity", "")
+            is_transient = e.code == 429 or (e.code >= 500 and severity == "Transient")
+
+            if is_transient and attempt < max_retries:
+                delay = 0.5 * (2 ** attempt)
+                logger.warning("Swift upload transient error (attempt %d), retry in %.1fs",
+                               attempt + 1, delay)
+                time.sleep(delay)
+                continue
+
+            err = RuntimeError(
+                f"Swift upload error {e.code}: {error_body.get('text', 'unknown')}"
+            )
+            err.status_code = e.code
+            err.swift_code  = error_body.get("code")
+            err.severity    = severity
+            raise err
+
+    raise RuntimeError("Max retries exceeded")
+
+
+def send_fin_message(token: str, message: dict, credentials: dict) -> dict:
+    """POST /fin/messages — FIN individual."""
+    return _swift_post(token, "/fin/messages", message, credentials)
+
+
+def send_fin_message_batch(token: str, messages: list, credentials: dict) -> list:
+    """POST /fin/messages/batch — hasta 500 mensajes FIN."""
+    results = []
+    for i in range(0, len(messages), FIN_BATCH_MAX):
+        chunk = messages[i:i + FIN_BATCH_MAX]
+        data  = _swift_post(token, "/fin/messages/batch", {"messages": chunk}, credentials)
+        results.extend(data.get("results", []))
+    return results
+
+
+def send_interact_message(token: str, message: dict, credentials: dict) -> dict:
+    """POST /interact/messages — InterAct individual."""
+    return _swift_post(token, "/interact/messages", message, credentials)
+
+
+def send_interact_message_batch(token: str, messages: list, credentials: dict) -> list:
+    """POST /interact/messages/batch — hasta 50 mensajes InterAct."""
+    results = []
+    for i in range(0, len(messages), INTERACT_BATCH_MAX):
+        chunk = messages[i:i + INTERACT_BATCH_MAX]
+        data  = _swift_post(token, "/interact/messages/batch", {"messages": chunk}, credentials)
+        results.extend(data.get("results", []))
+    return results
+
+
+def send_messages(token: str, messages, credentials: dict):
+    """
+    Router principal — detecta servicio y envía.
+
+    Args:
+        messages: dict (individual) o list (batch)
+    """
+    is_list = isinstance(messages, list)
+    lst     = messages if is_list else [messages]
+
+    if not lst:
+        raise ValueError("No messages to send")
+
+    service = detect_service(lst[0]["message_type"])
+    if not all(detect_service(m["message_type"]) == service for m in lst):
+        raise ValueError("All messages in a batch must be the same service")
+
+    if service == "fin":
+        result = (
+            send_fin_message(token, lst[0], credentials)
+            if len(lst) == 1
+            else send_fin_message_batch(token, lst, credentials)
+        )
+    else:
+        result = (
+            send_interact_message(token, lst[0], credentials)
+            if len(lst) == 1
+            else send_interact_message_batch(token, lst, credentials)
+        )
+
+    return result
