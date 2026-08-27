@@ -14,6 +14,8 @@ dist/
 *.p12
 *.pfx
 certs/
+.env*
+!.env.example
 
 # Logs
 logs/
@@ -25,3 +27,9 @@ npm-debug.log*
 
 # Sistema operativo
 .DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.build/
