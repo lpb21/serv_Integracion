@@ -119,7 +119,10 @@ stages:
               parametersSource: 'inline'
               parameters: |
                 [
-                  { "ParameterKey": "Environment", "ParameterValue": "${{ parameters.environment }}" }
+                  { "ParameterKey": "Environment", "ParameterValue": "${{ parameters.environment }}" },
+                  { "ParameterKey": "CoreInboundQueueName", "ParameterValue": "qa03-swift-queue.fifo" },
+                  { "ParameterKey": "CoreOutboundMtQueueName", "ParameterValue": "qa03-swift-output-queue.fifo" },
+                  { "ParameterKey": "CoreOutboundMxQueueName", "ParameterValue": "qa03-swift-output-mx-queue.fifo" }
                 ]
               tags: |
                 [
