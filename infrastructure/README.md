@@ -8,7 +8,7 @@ autenticación para que todo eso funcione sin intervención manual.
  
 > **Ojo:** el repositorio todavía se está armando. La parte de los stacks y sus
 > dependencias ya está clara y estable, pero el cómo se despliega (el pipeline de
-> Azure DevOps), los scripts de apoyo y algúno que otro detalle lo estamos definiendo. Al final esta la sección [Estado del proyecto](#estado-del-proyecto)
+> Azure DevOps), los scripts de apoyo y alguno que otro detalle lo estamos definiendo. Al final esta la sección [Estado del proyecto](#estado-del-proyecto)
 > con el resumen de qué está listo y qué no.
  
 ---
@@ -18,7 +18,7 @@ autenticación para que todo eso funcione sin intervención manual.
 ```
 infrastructure/
 ├── stacks/          Las plantillas CloudFormation, una por stack (orden 01→07)
-├── parameters/      Los valores por ambiente (sandbox / test / prod) — en construcción
+├── parameters/      Los valores por ambiente (dev / qa / prod) — en construcción
 └── scripts/         Scripts de despliegue y utilidades — en construcción
 ```
  
@@ -53,7 +53,9 @@ Las credenciales y el token se guardan en **DynamoDB cifrado con KMS** (no en
 Secrets Manager). La tabla usa
 `pk="credentials"` para el consumer key y sus campos cifrados, y `pk="token"`
 para el access token junto con su vigencia.
- 
+
+El código de las Lambdas vive en `lambdas/` (Python); los stacks de aquí definen su infraestructura en AWS.
+
 Y estas son las cuatro Lambdas que hacen el trabajo (todas viven en
 `05-lambdas.yaml`):
  
@@ -104,13 +106,11 @@ Y estas son las cuatro Lambdas que hacen el trabajo (todas viven en
 > importante es que **respete el orden 01→07**, porque cada stack necesita los
 > exports del anterior.
  
-Todos los stacks reciben el parámetro `Environment` (`sandbox`, `test` o `prod`) y
-nombran sus recursos con ese sufijo — por ejemplo `swift-sqs-sandbox-kms-key-arn`.
-Los valores propios de cada ambiente van a vivir en `parameters/` cuando esa parte
-esté lista.
+Todos los stacks reciben el parámetro `Environment` (`dev`, `qa` o `prod`) y
+nombran sus recursos con ese sufijo — por ejemplo `swift-sqs-dev-kms-key-arn`.
  
 Por convención (según lo que dice cada plantilla), los stacks se nombran con el
-patrón `swift-sqs-{env}-{stack}`, como `swift-sqs-sandbox-kms`.
+patrón `swift-sqs-{env}-{stack}`, como `swift-sqs-dev-kms`.
  
 ---
  
@@ -123,9 +123,8 @@ patrón `swift-sqs-{env}-{stack}`, como `swift-sqs-sandbox-kms`.
 - Cómo dependen unas de otras (los `Fn::ImportValue`).
 - Que el almacenamiento va en DynamoDB cifrado con KMS.
 **Lo que todavía se está definiendo:**
- 
-- El pipeline de despliegue en Azure DevOps.
-- Los scripts de apoyo (`scripts/`), donde podriamos tener un Python.
+
+- El pipeline de despliegue en Azure DevOps (los stacks 05-07 esperan el empaquetado del código Python de las Lambdas).
 - Los archivos de parámetros por ambiente (`parameters/`).
 - El intervalo fino del token-refresher (lo del pendiente de más arriba).
 ---
