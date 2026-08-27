@@ -1,0 +1,5 @@
+# Swift SQS Connector — Python 3.12
+# Dependencias de producción (Lambda runtime)
+
+boto3>=1.34.0
+cryptography>=42.0.0
