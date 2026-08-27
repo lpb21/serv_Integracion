@@ -68,8 +68,7 @@ Resources:
                 Action:
                   - sqs:SendMessage
                 Resource:
-                  - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-core-mt-arn'
-                  - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-core-mx-arn'
+                  - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-core-inbound-arn'
                   - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dlq-arn'
                   - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-send-results-arn'
 
@@ -82,7 +81,8 @@ Resources:
                   - sqs:GetQueueAttributes
                   - sqs:ChangeMessageVisibility
                 Resource:
-                  - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-core-outbound-arn'
+                  - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-core-outbound-mt-arn'
+                  - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-core-outbound-mx-arn'
 
               # ── SQS — FileAct (opcional) ──────────────────────────────────
               - !If

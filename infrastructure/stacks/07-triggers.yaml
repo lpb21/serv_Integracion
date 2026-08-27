@@ -9,7 +9,7 @@ Description: >
   Deploy order: 7 de 7 — depende de: 03-sqs, 05-lambdas
 
   Recursos:
-    EventSourceMapping: cola outbound del core → message-sender
+    EventSourceMapping (x2): colas de salida MT y MX del core → message-sender
     EventInvokeConfig:  async retries + DLQ destination para dispatcher
 
 Parameters:
@@ -18,12 +18,14 @@ Parameters:
     Default: dev
     AllowedValues: [dev, qa, prod]
 
-  CoreOutboundQueueArn:
-    Type: String
-    Description: >
-      ARN de la cola SQS outbound del core bancario.
-      Debe coincidir con el CoreOutboundQueueName del stack 03-sqs.
-      Formato: arn:aws:sqs:{region}:{account}:{queue-name}
+  #CoreOutboundQueueArn:
+  #  Type: String
+  #  Description: >
+  #    ARN de la cola SQS outbound del core bancario.
+  #    Debe coincidir con el CoreOutboundQueueName del stack 03-sqs.
+  #    Formato: arn:aws:sqs:{region}:{account}:{queue-name}
+  #Ya no se necesitan, los ARNs vienen del stack 3 por import
+
 
   SenderBatchSize:
     Type: Number
@@ -55,20 +57,36 @@ Parameters:
 
 Resources:
 
-  # ── SQS → message-sender ──────────────────────────────────────────────────
-  # El core publica mensajes MT/MX en texto plano en la cola outbound.
-  # Este mapping dispara el message-sender automáticamente.
+  # ── SQS → message-sender (cola de salida MT) ──────────────────────────────
+  # El core publica mensajes MT en texto plano en la cola de salida MT.
+  # El sender auto-detecta el formato por contenido, asi que ambas colas de
+  # salida (MT y MX) disparan la MISMA Lambda sender.
 
-  MessageSenderEventSourceMapping:
+  MessageSenderMtEventSourceMapping:
     Type: AWS::Lambda::EventSourceMapping
     Properties:
-      EventSourceArn: !Ref CoreOutboundQueueArn
+      EventSourceArn:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-core-outbound-mt-arn'
       FunctionName:
         Fn::ImportValue: !Sub 'swift-sqs-${Environment}-message-sender-arn'
       BatchSize: !Ref SenderBatchSize
       MaximumBatchingWindowInSeconds: !Ref SenderBatchingWindowSeconds
-      # ReportBatchItemFailures: reintenta solo los mensajes fallidos del batch
-      # en lugar de todo el batch completo
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+      ScalingConfig:
+        MaximumConcurrency: !Ref SenderMaxConcurrency
+
+  # ── SQS → message-sender (cola de salida MX) ──────────────────────────────
+
+  MessageSenderMxEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-core-outbound-mx-arn'
+      FunctionName:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-message-sender-arn'
+      BatchSize: !Ref SenderBatchSize
+      MaximumBatchingWindowInSeconds: !Ref SenderBatchingWindowSeconds
       FunctionResponseTypes:
         - ReportBatchItemFailures
       ScalingConfig:
@@ -92,9 +110,13 @@ Resources:
 
 Outputs:
 
-  EventSourceMappingId:
-    Description: ID del EventSourceMapping SQS → message-sender
-    Value: !Ref MessageSenderEventSourceMapping
+  EventSourceMappingMtId:
+    Description: ID del EventSourceMapping de la cola de salida MT → message-sender
+    Value: !Ref MessageSenderMtEventSourceMapping
+
+  EventSourceMappingMxId:
+    Description: ID del EventSourceMapping de la cola de salida MX → message-sender
+    Value: !Ref MessageSenderMxEventSourceMapping
 
   DispatcherRetryConfig:
     Description: Configuración de reintentos del dispatcher

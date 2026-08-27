@@ -31,17 +31,17 @@ Parameters:
     AllowedValues: [dev, qa, prod]
 
   # Colas del core — se usan para exportar las URLs completas
-  CoreMtInboundQueueName:
+  CoreInboundQueueName:
     Type: String
-    Description: Nombre de la cola SQS del core para mensajes MT entrantes
+    Description: Cola SQS FIFO de entrada del core — MT y MX juntos (Swift -> core)
 
-  CoreMxInboundQueueName:
+  CoreOutboundMtQueueName:
     Type: String
-    Description: Nombre de la cola SQS del core para mensajes MX entrantes
+    Description: Cola SQS FIFO de salida del core para mensajes MT (core -> Swift)
 
-  CoreOutboundQueueName:
+  CoreOutboundMxQueueName:
     Type: String
-    Description: Nombre de la cola SQS del core para mensajes salientes
+    Description: Cola SQS FIFO de salida del core para mensajes MX (core -> Swift)
 
   CoreFileActQueueName:
     Type: String
@@ -57,7 +57,8 @@ Resources:
   DeadLetterQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub 'swift-sqs-${Environment}-dlq'
+      QueueName: !Sub 'swift-sqs-${Environment}-dlq.fifo'
+      FifoQueue: true
       MessageRetentionPeriod: 1209600   # 14 días
       Tags:
         - Key: Project
@@ -71,7 +72,9 @@ Resources:
   SendResultsQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub 'swift-sqs-${Environment}-send-results'
+      QueueName: !Sub 'swift-sqs-${Environment}-send-results.fifo'
+      FifoQueue: true
+      ContentBasedDeduplication: false
       VisibilityTimeout: 60
       MessageRetentionPeriod: 86400    # 1 día
       RedrivePolicy:
@@ -114,41 +117,44 @@ Outputs:
       Name: !Sub 'swift-sqs-${Environment}-send-results-arn'
 
   # ── Colas del core (ARNs construidos para el IAM stack) ──────────────────
-  CoreMtInboundArn:
-    Description: ARN de la cola MT inbound del core
-    Value: !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${CoreMtInboundQueueName}'
+  # 1 entrada (MT+MX) / 2 salidas (MT, MX)
+  CoreInboundArn:
+    Description: ARN de la cola de entrada del core (MT y MX)
+    Value: !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${CoreInboundQueueName}'
     Export:
-      Name: !Sub 'swift-sqs-${Environment}-core-mt-arn'
+      Name: !Sub 'swift-sqs-${Environment}-core-inbound-arn'
 
-  CoreMxInboundArn:
-    Description: ARN de la cola MX inbound del core
-    Value: !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${CoreMxInboundQueueName}'
+  CoreInboundUrl:
+    Description: URL de la cola de entrada del core (MT y MX)
+    Value: !Sub 'https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/${CoreInboundQueueName}'
     Export:
-      Name: !Sub 'swift-sqs-${Environment}-core-mx-arn'
+      Name: !Sub 'swift-sqs-${Environment}-core-inbound-url'
 
-  CoreOutboundArn:
-    Description: ARN de la cola outbound del core
-    Value: !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${CoreOutboundQueueName}'
+  # Salida MT: core -> Swift
+  CoreOutboundMtArn:
+    Description: ARN de la cola de salida MT del core
+    Value: !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${CoreOutboundMtQueueName}'
     Export:
-      Name: !Sub 'swift-sqs-${Environment}-core-outbound-arn'
+      Name: !Sub 'swift-sqs-${Environment}-core-outbound-mt-arn'
 
-  CoreMtInboundUrl:
-    Description: URL de la cola MT inbound del core
-    Value: !Sub 'https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/${CoreMtInboundQueueName}'
+  CoreOutboundMtUrl:
+    Description: URL de la cola de salida MT del core
+    Value: !Sub 'https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/${CoreOutboundMtQueueName}'
     Export:
-      Name: !Sub 'swift-sqs-${Environment}-core-mt-url'
+      Name: !Sub 'swift-sqs-${Environment}-core-outbound-mt-url'
 
-  CoreMxInboundUrl:
-    Description: URL de la cola MX inbound del core
-    Value: !Sub 'https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/${CoreMxInboundQueueName}'
+  # Salida MX: core -> Swift
+  CoreOutboundMxArn:
+    Description: ARN de la cola de salida MX del core
+    Value: !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${CoreOutboundMxQueueName}'
     Export:
-      Name: !Sub 'swift-sqs-${Environment}-core-mx-url'
+      Name: !Sub 'swift-sqs-${Environment}-core-outbound-mx-arn'
 
-  CoreOutboundUrl:
-    Description: URL de la cola outbound del core
-    Value: !Sub 'https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/${CoreOutboundQueueName}'
+  CoreOutboundMxUrl:
+    Description: URL de la cola de salida MX del core
+    Value: !Sub 'https://sqs.${AWS::Region}.amazonaws.com/${AWS::AccountId}/${CoreOutboundMxQueueName}'
     Export:
-      Name: !Sub 'swift-sqs-${Environment}-core-outbound-url'
+      Name: !Sub 'swift-sqs-${Environment}-core-outbound-mx-url'
 
   CoreFileActArn:
     Condition: HasFileActQueue
