@@ -70,4 +70,4 @@ Outputs:
       DYNAMODB_TABLE_NAME=${SwiftStoreTable}
       KMS_KEY_ID=alias/swift-sqs-${Environment}-store
       SWIFT_ENV=${Environment}
-      node scripts/setup-credentials.mjs
+      python scripts/setup_credentials.py
