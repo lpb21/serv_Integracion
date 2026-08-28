@@ -71,7 +71,7 @@ stages:
               stackName: '$(stackPrefix)-kms'
               templateSource: 'file'
               templateFile: '$(templatesPath)/01-kms.yaml'
-              onFailure: 'DELETE'
+              onFailure: 'DO_NOTHING'
               parametersSource: 'inline'
               parameters: |
                 [
