@@ -72,11 +72,8 @@ stages:
               templateSource: 'file'
               templateFile: '$(templatesPath)/01-kms.yaml'
               onFailure: 'DO_NOTHING'
-              parametersSource: 'inline'
-              parameters: |
-                [
-                  { "ParameterKey": "Environment", "ParameterValue": "${{ parameters.environment }}" }
-                ]
+              parametersSource: 'file'
+              parametersFile: 'infrastructure/parameters/${{ parameters.environment }}-kms.json'
               tags: |
                 [
                   { "Key": "Project", "Value": "swift-sqs-connector" },

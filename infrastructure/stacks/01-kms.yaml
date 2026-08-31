@@ -74,6 +74,18 @@ Resources:
           Value: !Ref tecenvironmenttype
         - Key: banistmo:application-office  
           Value: !Ref banistmoapplicationoffice
+        - Key: banistmo:cumplimiento
+          Value: !Ref banistmocumplimiento
+        - Key: banistmo:clasificacion-disponibilidad
+          Value: !Ref banistmoclasificaciondisponibilidad
+        - Key: banistmo:clasificacion-integridad
+          Value: !Ref banistmoclasificacionintegridad
+        - Key: banistmo:clasificacion-confidencialidad
+          Value: !Ref banistmoclasificacionconfidencialidad
+        - Key: banistmo:dominio-informacion
+          Value: !Ref banistmodominioinformacion
+        - Key: banistmo:datos-personales
+          Value: !Ref banistmodatospersonales
 
   SwiftStoreKeyAlias:
     Type: AWS::KMS::Alias
