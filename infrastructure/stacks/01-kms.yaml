@@ -13,6 +13,31 @@ Parameters:
     Default: dev
     AllowedValues: [dev, qa, prod]
     Description: Ambiente de despliegue
+  ###############################################################################################
+  # TAGS                                                                                        #
+  ###############################################################################################
+  banistmoapplicationcode:
+    Type: String
+  banistmobillingmode:
+    Type: String
+  repository:
+    Type: String
+  tecenvironmenttype:
+    Type: String
+  banistmoapplicationoffice:
+    Type: String
+  banistmocumplimiento:
+    Type: String
+  banistmoclasificaciondisponibilidad:
+    Type: String
+  banistmoclasificacionintegridad:
+    Type: String
+  banistmoclasificacionconfidencialidad:
+    Type: String
+  banistmodominioinformacion:
+    Type: String
+  banistmodatospersonales:
+    Type: String
 
 Resources:
 
@@ -39,6 +64,16 @@ Resources:
           Value: !Ref Environment
         - Key: Stack
           Value: kms
+        - Key: banistmo:application-code
+          Value: !Ref banistmoapplicationcode
+        - Key: banistmo:billing-mode
+          Value: !Ref banistmobillingmode
+        - Key: banistmo:repository
+          Value: !Ref repository
+        - Key: banistmo:tec:environment-type
+          Value: !Ref tecenvironmenttype
+        - Key: banistmo:application-office  
+          Value: !Ref banistmoapplicationoffice
 
   SwiftStoreKeyAlias:
     Type: AWS::KMS::Alias
