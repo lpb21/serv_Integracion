@@ -71,7 +71,7 @@ stages:
               stackName: '$(stackPrefix)-kms'
               templateSource: 'file'
               templateFile: '$(templatesPath)/01-kms.yaml'
-              onFailure: 'DO_NOTHING'
+              onFailure: 'DELETE'
               templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-kms.json'
               tags: |
                 banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
@@ -97,18 +97,21 @@ stages:
               stackName: '$(stackPrefix)-dynamodb'
               templateSource: 'file'
               templateFile: '$(templatesPath)/02-dynamodb.yaml'
-              onFailure: 'DELETE'
-              parametersSource: 'inline'
-              parameters: |
-                [
-                  { "ParameterKey": "Environment", "ParameterValue": "${{ parameters.environment }}" }
-                ]
+              onFailure: 'DO_NOTHING'
               tags: |
-                [
-                  { "Key": "Project", "Value": "swift-sqs-connector" },
-                  { "Key": "Environment", "Value": "${{ parameters.environment }}" },
-                  { "Key": "DeployedBy", "Value": "azure-pipelines" }
-                ]
+                banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
+                banistmo:billing-mode=unico
+                banistmo:repository=bipcld0465000-cnf-swift-int-alliance-cloud
+                banistmo:tec:environment-type=${{ parameters.environment }}
+                banistmo:application-office=14302
+                banistmo:cumplimiento=sox-bia
+                banistmo:clasificacion-disponibilidad=impacto-critico
+                banistmo:clasificacion-integridad=impacto-critico
+                banistmo:clasificacion-confidencialidad=confidencial
+                banistmo:dominio-informacion=productos-activos-financiera-riesgos-seguridad
+                banistmo:datos-personales=clientes-proveedores-empleados-accionistas
+                Project=swift-sqs-connector
+                DeployedBy=azure-pipelines
 
           # -- 03 - SQS ------------------------------------------------------
           - task: CloudFormationCreateOrUpdateStack@1
