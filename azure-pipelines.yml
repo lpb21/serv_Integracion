@@ -75,8 +75,18 @@ stages:
               templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-kms.json'
               tags: |
                 [
+                  { "Key": "banistmo:application-code", "Value": "bip-cld-0465-000-swift-alliance-cloud" },
+                  { "Key": "banistmo:billing-mode", "Value": "unico" },
+                  { "Key": "banistmo:repository", "Value": "bipcld0465000-cnf-swift-int-alliance-cloud" },
+                  { "Key": "banistmo:tec:environment-type", "Value": "${{ parameters.environment }}" },
+                  { "Key": "banistmo:application-office", "Value": "14302" },
+                  { "Key": "banistmo:cumplimiento", "Value": "sox-bia" },
+                  { "Key": "banistmo:clasificacion-disponibilidad", "Value": "impacto-critico" },
+                  { "Key": "banistmo:clasificacion-integridad", "Value": "impacto-critico" },
+                  { "Key": "banistmo:clasificacion-confidencialidad", "Value": "confidencial" },
+                  { "Key": "banistmo:dominio-informacion", "Value": "productos-activos-financiera-riesgos-seguridad" },
+                  { "Key": "banistmo:datos-personales", "Value": "clientes-proveedores-empleados-accionistas" },
                   { "Key": "Project", "Value": "swift-sqs-connector" },
-                  { "Key": "Environment", "Value": "${{ parameters.environment }}" },
                   { "Key": "DeployedBy", "Value": "azure-pipelines" }
                 ]
               parameters: |
