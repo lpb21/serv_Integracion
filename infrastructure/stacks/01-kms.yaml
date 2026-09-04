@@ -58,6 +58,8 @@ Resources:
             Action: 'kms:*'
             Resource: '*'
       Tags:
+        - Key: banistmo:Tipodellave
+          Value: simetrica
         - Key: Project
           Value: swift-sqs-connector
         - Key: Environment
