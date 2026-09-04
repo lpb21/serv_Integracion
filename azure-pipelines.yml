@@ -73,22 +73,20 @@ stages:
               templateFile: '$(templatesPath)/01-kms.yaml'
               onFailure: 'DO_NOTHING'
               templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-kms.json'
-              resourcetags: |
-                [
-                  { "Key": "banistmo:application-code", "Value": "bip-cld-0465-000-swift-alliance-cloud" },
-                  { "Key": "banistmo:billing-mode", "Value": "unico" },
-                  { "Key": "banistmo:repository", "Value": "bipcld0465000-cnf-swift-int-alliance-cloud" },
-                  { "Key": "banistmo:tec:environment-type", "Value": "${{ parameters.environment }}" },
-                  { "Key": "banistmo:application-office", "Value": "14302" },
-                  { "Key": "banistmo:cumplimiento", "Value": "sox-bia" },
-                  { "Key": "banistmo:clasificacion-disponibilidad", "Value": "impacto-critico" },
-                  { "Key": "banistmo:clasificacion-integridad", "Value": "impacto-critico" },
-                  { "Key": "banistmo:clasificacion-confidencialidad", "Value": "confidencial" },
-                  { "Key": "banistmo:dominio-informacion", "Value": "productos-activos-financiera-riesgos-seguridad" },
-                  { "Key": "banistmo:datos-personales", "Value": "clientes-proveedores-empleados-accionistas" },
-                  { "Key": "Project", "Value": "swift-sqs-connector" },
-                  { "Key": "DeployedBy", "Value": "azure-pipelines" }
-                ]
+              tags: |
+                banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
+                banistmo:billing-mode=unico
+                banistmo:repository=bipcld0465000-cnf-swift-int-alliance-cloud
+                banistmo:tec:environment-type=${{ parameters.environment }}
+                banistmo:application-office=14302
+                banistmo:cumplimiento=sox-bia
+                banistmo:clasificacion-disponibilidad=impacto-critico
+                banistmo:clasificacion-integridad=impacto-critico
+                banistmo:clasificacion-confidencialidad=confidencial
+                banistmo:dominio-informacion=productos-activos-financiera-riesgos-seguridad
+                banistmo:datos-personales=clientes-proveedores-empleados-accionistas
+                Project=swift-sqs-connector
+                DeployedBy=azure-pipelines
 
           # -- 02 - DynamoDB (depende de 01) ---------------------------------
           - task: CloudFormationCreateOrUpdateStack@1
