@@ -73,7 +73,7 @@ stages:
               templateFile: '$(templatesPath)/01-kms.yaml'
               onFailure: 'DELETE'
               templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-kms.json'
-              tags: |
+              resourcetags: |
                 [
                   { "Key": "banistmo:application-code", "Value": "bip-cld-0465-000-swift-alliance-cloud" },
                   { "Key": "banistmo:billing-mode", "Value": "unico" },
