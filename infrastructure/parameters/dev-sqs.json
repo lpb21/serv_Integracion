@@ -1,0 +1,6 @@
+[
+  { "ParameterKey": "Environment", "ParameterValue": "dev" },
+  { "ParameterKey": "CoreInboundQueueName", "ParameterValue": "dev-swift-queue.fifo" },
+  { "ParameterKey": "CoreOutboundMtQueueName", "ParameterValue": "dev-swift-output-queue.fifo" },
+  { "ParameterKey": "CoreOutboundMxQueueName", "ParameterValue": "dev-swift-output-mx-queue.fifo" }
+]

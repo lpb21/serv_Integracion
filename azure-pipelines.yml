@@ -98,7 +98,7 @@ stages:
               templateSource: 'file'
               templateFile: '$(templatesPath)/02-dynamodb.yaml'
               templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-dynamodb.json'
-              onFailure: 'DO_NOTHING'
+              onFailure: 'DELETE'
               tags: |
                 banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
                 banistmo:billing-mode=unico
@@ -123,7 +123,8 @@ stages:
               stackName: '$(stackPrefix)-sqs'
               templateSource: 'file'
               templateFile: '$(templatesPath)/03-sqs.yaml'
-              onFailure: 'DELETE'
+              templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-sqs.json'
+              onFailure: 'DO_NOTHING'
               parametersSource: 'inline'
               parameters: |
                 [
@@ -133,11 +134,19 @@ stages:
                   { "ParameterKey": "CoreOutboundMxQueueName", "ParameterValue": "qa03-swift-output-mx-queue.fifo" }
                 ]
               tags: |
-                [
-                  { "Key": "Project", "Value": "swift-sqs-connector" },
-                  { "Key": "Environment", "Value": "${{ parameters.environment }}" },
-                  { "Key": "DeployedBy", "Value": "azure-pipelines" }
-                ]
+                banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
+                banistmo:billing-mode=unico
+                banistmo:repository=bipcld0465000-cnf-swift-int-alliance-cloud
+                banistmo:tec:environment-type=${{ parameters.environment }}
+                banistmo:application-office=14302
+                banistmo:cumplimiento=sox-bia
+                banistmo:clasificacion-disponibilidad=impacto-critico
+                banistmo:clasificacion-integridad=impacto-critico
+                banistmo:clasificacion-confidencialidad=confidencial
+                banistmo:dominio-informacion=productos-activos-financiera-riesgos-seguridad
+                banistmo:datos-personales=clientes-proveedores-empleados-accionistas
+                Project=swift-sqs-connector
+                DeployedBy=azure-pipelines
 
           # -- 04 - IAM (depende de 01, 02, 03) ------------------------------
           # IMPORTANTE: los stacks que crean recursos IAM con nombre requieren
