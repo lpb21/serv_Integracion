@@ -29,6 +29,13 @@ Parameters:
     Type: String
     Default: dev
     AllowedValues: [dev, qa, prod]
+  banistmoclasificaciondisponibilidad:
+      Type: String
+  banistmoclasificacionintegridad:
+    Type: String
+  banistmoclasificacionconfidencialidad:
+    Type: String
+
 
   # Colas del core — se usan para exportar las URLs completas
   CoreInboundQueueName:
@@ -67,6 +74,12 @@ Resources:
           Value: !Ref Environment
         - Key: Stack
           Value: sqs
+        - Key: banistmo:clasificacion-disponibilidad
+          Value: !Ref banistmoclasificaciondisponibilidad
+        - Key: banistmo:clasificacion-integridad
+          Value: !Ref banistmoclasificacionintegridad
+        - Key: banistmo:clasificacion-confidencialidad
+          Value: !Ref banistmoclasificacionconfidencialidad
 
   # ── Send Results — conector notifica al core el resultado de envíos ───────
   SendResultsQueue:
@@ -87,6 +100,12 @@ Resources:
           Value: !Ref Environment
         - Key: Stack
           Value: sqs
+        - Key: banistmo:clasificacion-disponibilidad
+          Value: !Ref banistmoclasificaciondisponibilidad
+        - Key: banistmo:clasificacion-integridad
+          Value: !Ref banistmoclasificacionintegridad
+        - Key: banistmo:clasificacion-confidencialidad
+          Value: !Ref banistmoclasificacionconfidencialidad
 
 Outputs:
 
