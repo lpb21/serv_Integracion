@@ -1,10 +1,5 @@
 [
   { "ParameterKey": "Environment", "ParameterValue": "dev" },
-  { "ParameterKey": "banistmoapplicationcode", "ParameterValue": "bip-cld-0465-000-swift-alliance-cloud" },
-  { "ParameterKey": "banistmobillingmode", "ParameterValue": "unico" },
-  { "ParameterKey": "repository", "ParameterValue": "bipcld0465000-cnf-swift-int-alliance-cloud" },
-  { "ParameterKey": "tecenvironmenttype", "ParameterValue": "dev" },
-  { "ParameterKey": "banistmoapplicationoffice", "ParameterValue": "14302" },
   { "ParameterKey": "banistmocumplimiento", "ParameterValue": "sox-bia" },
   { "ParameterKey": "banistmoclasificaciondisponibilidad", "ParameterValue": "impacto-critico" },
   { "ParameterKey": "banistmoclasificacionintegridad", "ParameterValue": "impacto-critico" },
