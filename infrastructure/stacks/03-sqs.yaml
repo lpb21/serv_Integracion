@@ -8,21 +8,21 @@ Description: >
   Stack name recomendado: swift-sqs-{env}-sqs
   Deploy order: 3 de 7 — no depende de otros stacks.
 
-  Colas del core (NO se crean en este stack — solo se referencian por nombre):
-    CoreMtInboundQueueName  → mensajes FIN entrantes
-    CoreMxInboundQueueName  → mensajes MX entrantes
-    CoreOutboundQueueName   → mensajes salientes MT/MX
-    CoreFileActQueueName    → FileAct (opcional)
+# Colas del core (NO se crean en este stack — solo se referencian por nombre):
+#   CoreMtInboundQueueName  → mensajes FIN entrantes
+#   CoreMxInboundQueueName  → mensajes MX entrantes
+#   CoreOutboundQueueName   → mensajes salientes MT/MX
+#   CoreFileActQueueName    → FileAct (opcional)
 
-  Estrategia por ambiente:
-    - dev:  las colas que simulan a Cobis se crean APARTE (colas dummy) y aca
-            solo se referencian por nombre. Sirven para probar el flujo como si
-            estuvieramos conectados al core.
-    - prod: se apunta a las colas REALES de Cobis (que ya existen). Tampoco se
-            crean aca; solo se referencian.
-    En ambos casos este stack unicamente referencia las colas del core; nunca
-    las crea. Lo que si crea son las colas propias del conector (DLQ y
-    send-results).
+# Estrategia por ambiente:
+#   - dev:  las colas que simulan a Cobis se crean APARTE (colas dummy) y aca
+#           solo se referencian por nombre. Sirven para probar el flujo como si
+#           estuvieramos conectados al core.
+#   - prod: se apunta a las colas REALES de Cobis (que ya existen). Tampoco se
+#           crean aca; solo se referencian.
+#   En ambos casos este stack unicamente referencia las colas del core; nunca
+#   las crea. Lo que si crea son las colas propias del conector (DLQ y
+#   send-results).
 
 Parameters:
   Environment:
