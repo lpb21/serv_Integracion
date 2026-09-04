@@ -97,6 +97,7 @@ stages:
               stackName: '$(stackPrefix)-dynamodb'
               templateSource: 'file'
               templateFile: '$(templatesPath)/02-dynamodb.yaml'
+              templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-dynamodb.json'
               onFailure: 'DO_NOTHING'
               tags: |
                 banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud

@@ -16,6 +16,19 @@ Parameters:
     Type: String
     Default: dev
     AllowedValues: [dev, qa, prod]
+  banistmocumplimiento:
+    Type: String
+  banistmoclasificaciondisponibilidad:
+    Type: String
+  banistmoclasificacionintegridad:
+    Type: String
+  banistmoclasificacionconfidencialidad:
+    Type: String
+  banistmodominioinformacion:
+    Type: String
+  banistmodatospersonales:
+    Type: String
+
 
 Resources:
 
@@ -49,6 +62,18 @@ Resources:
           Value: !Ref Environment
         - Key: Stack
           Value: dynamodb
+        - Key: banistmo:cumplimiento
+          Value: !Ref banistmocumplimiento
+        - Key: banistmo:clasificacion-disponibilidad
+          Value: !Ref banistmoclasificaciondisponibilidad
+        - Key: banistmo:clasificacion-integridad
+          Value: !Ref banistmoclasificacionintegridad
+        - Key: banistmo:clasificacion-confidencialidad
+          Value: !Ref banistmoclasificacionconfidencialidad
+        - Key: banistmo:dominio-informacion
+          Value: !Ref banistmodominioinformacion
+        - Key: banistmo:datos-personales
+          Value: !Ref banistmodatospersonales
 
 Outputs:
 
