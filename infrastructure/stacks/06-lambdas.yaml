@@ -38,6 +38,19 @@ Parameters:
     Default: ''
     Description: Nombre de la cola FileAct del core (opcional)
 
+  banistmoclasificaciondisponibilidad:
+    Type: String
+  banistmoclasificacionintegridad:
+    Type: String
+  banistmoclasificacionconfidencialidad:
+    Type: String
+  banistmocumplimiento:
+    Type: String
+  banistmodominioinformacion:
+    Type: String
+  banistmodatospersonales:
+    Type: String
+
 Conditions:
   HasFileActQueue: !Not [!Equals [!Ref CoreFileActQueueName, '']]
 
@@ -73,13 +86,44 @@ Resources:
           Value: !Ref Environment
         - Key: Stack
           Value: lambdas
-
+        - Key: banistmo:clasificacion-disponibilidad
+          Value: !Ref banistmoclasificaciondisponibilidad
+        - Key: banistmo:clasificacion-integridad
+          Value: !Ref banistmoclasificacionintegridad
+        - Key: banistmo:clasificacion-confidencialidad
+          Value: !Ref banistmoclasificacionconfidencialidad
+        - Key: banistmo:cumplimiento
+          Value: !Ref banistmocumplimiento
+        - Key: banistmo:dominio-informacion
+          Value: !Ref banistmodominioinformacion
+        - Key: banistmo:datos-personales
+          Value: !Ref banistmodatospersonales
+        
   TokenRefresherLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/swift-sqs-${Environment}-token-refresher'
       RetentionInDays: 30
-
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: lambdas
+        - Key: banistmo:clasificacion-disponibilidad
+          Value: !Ref banistmoclasificaciondisponibilidad
+        - Key: banistmo:clasificacion-integridad
+          Value: !Ref banistmoclasificacionintegridad
+        - Key: banistmo:clasificacion-confidencialidad
+          Value: !Ref banistmoclasificacionconfidencialidad
+        - Key: banistmo:cumplimiento
+          Value: !Ref banistmocumplimiento
+        - Key: banistmo:dominio-informacion
+          Value: !Ref banistmodominioinformacion
+        - Key: banistmo:datos-personales
+          Value: !Ref banistmodatospersonales
+  
   # ── message-dispatcher ────────────────────────────────────────────────────
   # Se define ANTES del poller porque el poller referencia su nombre.
 
@@ -117,12 +161,43 @@ Resources:
           Value: !Ref Environment
         - Key: Stack
           Value: lambdas
+        - Key: banistmo:clasificacion-disponibilidad
+          Value: !Ref banistmoclasificaciondisponibilidad
+        - Key: banistmo:clasificacion-integridad
+          Value: !Ref banistmoclasificacionintegridad
+        - Key: banistmo:clasificacion-confidencialidad
+          Value: !Ref banistmoclasificacionconfidencialidad
+        - Key: banistmo:cumplimiento
+          Value: !Ref banistmocumplimiento
+        - Key: banistmo:dominio-informacion
+          Value: !Ref banistmodominioinformacion
+        - Key: banistmo:datos-personales
+          Value: !Ref banistmodatospersonales
 
   MessageDispatcherLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/swift-sqs-${Environment}-message-dispatcher'
       RetentionInDays: 30
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: lambdas
+        - Key: banistmo:clasificacion-disponibilidad
+          Value: !Ref banistmoclasificaciondisponibilidad
+        - Key: banistmo:clasificacion-integridad
+          Value: !Ref banistmoclasificacionintegridad
+        - Key: banistmo:clasificacion-confidencialidad
+          Value: !Ref banistmoclasificacionconfidencialidad
+        - Key: banistmo:cumplimiento
+          Value: !Ref banistmocumplimiento
+        - Key: banistmo:dominio-informacion
+          Value: !Ref banistmodominioinformacion
+        - Key: banistmo:datos-personales
+          Value: !Ref banistmodatospersonales
 
   # ── message-poller ────────────────────────────────────────────────────────
 
@@ -156,12 +231,43 @@ Resources:
           Value: !Ref Environment
         - Key: Stack
           Value: lambdas
+        - Key: banistmo:clasificacion-disponibilidad
+          Value: !Ref banistmoclasificaciondisponibilidad
+        - Key: banistmo:clasificacion-integridad
+          Value: !Ref banistmoclasificacionintegridad
+        - Key: banistmo:clasificacion-confidencialidad
+          Value: !Ref banistmoclasificacionconfidencialidad
+        - Key: banistmo:cumplimiento
+          Value: !Ref banistmocumplimiento
+        - Key: banistmo:dominio-informacion
+          Value: !Ref banistmodominioinformacion
+        - Key: banistmo:datos-personales
+          Value: !Ref banistmodatospersonales
 
   MessagePollerLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/swift-sqs-${Environment}-message-poller'
       RetentionInDays: 30
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: lambdas
+        - Key: banistmo:clasificacion-disponibilidad
+          Value: !Ref banistmoclasificaciondisponibilidad
+        - Key: banistmo:clasificacion-integridad
+          Value: !Ref banistmoclasificacionintegridad
+        - Key: banistmo:clasificacion-confidencialidad
+          Value: !Ref banistmoclasificacionconfidencialidad
+        - Key: banistmo:cumplimiento
+          Value: !Ref banistmocumplimiento
+        - Key: banistmo:dominio-informacion
+          Value: !Ref banistmodominioinformacion
+        - Key: banistmo:datos-personales
+          Value: !Ref banistmodatospersonales
 
   # ── message-sender ────────────────────────────────────────────────────────
 
@@ -195,12 +301,43 @@ Resources:
           Value: !Ref Environment
         - Key: Stack
           Value: lambdas
+        - Key: banistmo:clasificacion-disponibilidad
+          Value: !Ref banistmoclasificaciondisponibilidad
+        - Key: banistmo:clasificacion-integridad
+          Value: !Ref banistmoclasificacionintegridad
+        - Key: banistmo:clasificacion-confidencialidad
+          Value: !Ref banistmoclasificacionconfidencialidad
+        - Key: banistmo:cumplimiento
+          Value: !Ref banistmocumplimiento
+        - Key: banistmo:dominio-informacion
+          Value: !Ref banistmodominioinformacion
+        - Key: banistmo:datos-personales
+          Value: !Ref banistmodatospersonales
 
   MessageSenderLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/swift-sqs-${Environment}-message-sender'
       RetentionInDays: 30
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: lambdas
+        - Key: banistmo:clasificacion-disponibilidad
+          Value: !Ref banistmoclasificaciondisponibilidad
+        - Key: banistmo:clasificacion-integridad
+          Value: !Ref banistmoclasificacionintegridad
+        - Key: banistmo:clasificacion-confidencialidad
+          Value: !Ref banistmoclasificacionconfidencialidad
+        - Key: banistmo:cumplimiento
+          Value: !Ref banistmocumplimiento
+        - Key: banistmo:dominio-informacion
+          Value: !Ref banistmodominioinformacion
+        - Key: banistmo:datos-personales
+          Value: !Ref banistmodatospersonales
 
   # ── Política inline — permite al poller invocar el dispatcher ─────────────
   # Se define aquí (no en IAM) para evitar dependencia circular:
