@@ -124,7 +124,7 @@ stages:
               templateSource: 'file'
               templateFile: '$(templatesPath)/03-sqs.yaml'
               templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-sqs.json'
-              onFailure: 'DO_NOTHING'
+              onFailure: 'DELETE'
               parametersSource: 'inline'
               parameters: |
                 [
@@ -159,7 +159,7 @@ stages:
               stackName: '$(stackPrefix)-iam'
               templateSource: 'file'
               templateFile: '$(templatesPath)/04-iam.yaml'
-              onFailure: 'DELETE'
+              onFailure: 'DO_NOTHING'
               capabilities: 'CAPABILITY_NAMED_IAM'
               parametersSource: 'inline'
               parameters: |
