@@ -40,10 +40,7 @@ Resources:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
-              SSEAlgorithm: aws:kms
-              KMSMasterKeyID: !ImportValue
-                'Fn::Sub': 'swift-sqs-${Environment}-kms-key-arn'
-            BucketKeyEnabled: true
+              SSEAlgorithm: AES256
       Tags:
         - Key: Project
           Value: swift-sqs-connector
@@ -63,6 +60,25 @@ Resources:
           Value: !Ref banistmodominioinformacion
         - Key: banistmo:datos-personales
           Value: !Ref banistmodatospersonales
+
+
+  DeploymentBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DeploymentBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowSSLRequestsOnly
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt DeploymentBucket.Arn
+              - !Sub '${DeploymentBucket.Arn}/*'
+            Condition:
+              Bool:
+                'aws:SecureTransport': 'false'
 
 Outputs:
 
