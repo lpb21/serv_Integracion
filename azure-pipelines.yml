@@ -159,7 +159,7 @@ stages:
               stackName: '$(stackPrefix)-iam'
               templateSource: 'file'
               templateFile: '$(templatesPath)/04-iam.yaml'
-              onFailure: 'DO_NOTHING'
+              onFailure: 'DELETE'
               capabilities: 'CAPABILITY_NAMED_IAM'
               templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-iam.json'
               tags: |

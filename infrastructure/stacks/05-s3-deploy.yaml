@@ -40,7 +40,10 @@ Resources:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !ImportValue
+                'Fn::Sub': 'swift-sqs-${Environment}-kms-key-arn'
+            BucketKeyEnabled: true
       Tags:
         - Key: Project
           Value: swift-sqs-connector
