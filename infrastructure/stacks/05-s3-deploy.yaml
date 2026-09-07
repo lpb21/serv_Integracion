@@ -40,6 +40,9 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       BucketName: !Sub 's3-0465-000-swiftint-${Environment}-deployment'
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -51,6 +54,12 @@ Resources:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: 5YearsExpiration
+            Status: Enabled
+            Prefix: ""
+            ExpirationInDays: 1826
       Tags:
         - Key: Project
           Value: swift-sqs-connector
