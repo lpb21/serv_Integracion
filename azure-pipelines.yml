@@ -177,7 +177,7 @@ stages:
                 Project=swift-sqs-connector
                 DeployedBy=azure-pipelines
 
-
+          
           - task: CloudFormationCreateOrUpdateStack@1
             displayName: '05 - S3 Deploy'
             inputs:
@@ -202,6 +202,62 @@ stages:
                 banistmo:datos-personales=clientes-proveedores-empleados-accionistas
                 Project=swift-sqs-connector
                 DeployedBy=azure-pipelines
+
+          # ── Empaquetado de Lambdas ──────────────────────────────────────
+          # Genera un ZIP por cada Lambda (handler.py + shared/ + cryptography
+          # precompilada para Lambda x86_64/py3.12) y los sube al bucket de
+          # despliegue. boto3 no se incluye: ya viene en el runtime de Lambda.
+          # DEBE correr antes del stack 06-lambdas, que referencia estos ZIPs.
+          - task: AWSShellScript@1
+            displayName: 'Empaquetar y subir Lambdas a S3'
+            inputs:
+              awsCredentials: '$(awsServiceConnection)'
+              scriptType: 'inline'
+              inlineScript: |
+                set -e
+                BUCKET="s3-0465-000-swiftint-${{ parameters.environment }}-deployment"
+                BUILD_DIR="$(Build.SourcesDirectory)/build"
+                LAMBDAS="token-refresher message-dispatcher message-poller message-sender"
+
+                declare -A DIRMAP=(
+                  ["token-refresher"]="token_refresher"
+                  ["message-dispatcher"]="message_dispatcher"
+                  ["message-poller"]="message_poller"
+                  ["message-sender"]="message_sender"
+                )
+
+                rm -rf "$BUILD_DIR"
+                mkdir -p "$BUILD_DIR"
+
+                for LAMBDA in $LAMBDAS; do
+                  SRC_DIR="${DIRMAP[$LAMBDA]}"
+                  PKG="$BUILD_DIR/$LAMBDA"
+                  mkdir -p "$PKG"
+
+                  # 1. handler.py en la raíz del zip
+                  cp "$(Build.SourcesDirectory)/lambdas/$SRC_DIR/handler.py" "$PKG/"
+
+                  # 2. carpeta shared/
+                  cp -r "$(Build.SourcesDirectory)/shared" "$PKG/shared"
+
+                  # 3. dependencias — solo cryptography, precompilada para Lambda
+                  pip3 install \
+                    --platform manylinux2014_x86_64 \
+                    --target "$PKG" \
+                    --implementation cp \
+                    --python-version 3.12 \
+                    --only-binary=:all: \
+                    cryptography==42.0.0 --quiet
+
+                  # 4. zip (handler.py en la raíz)
+                  cd "$PKG"
+                  zip -r "$BUILD_DIR/$LAMBDA.zip" . -x "*.pyc" -x "*__pycache__*" > /dev/null
+                  cd -
+
+                  # 5. subir a S3
+                  aws s3 cp "$BUILD_DIR/$LAMBDA.zip" "s3://$BUCKET/$LAMBDA.zip"
+                  echo "Subido: $LAMBDA.zip"
+                done
 # ============================================================================
 # PENDIENTE - Stacks 05, 06 y 07
 # ============================================================================
@@ -218,7 +274,7 @@ stages:
 # Plantilla de referencia para cada una (aqui se pueden ajustar los parametros segun cada stack):
 #
 #   - task: CloudFormationCreateOrUpdateStack@1
-#     displayName: '05 - Lambdas'
+#     displayName: '06 - Lambdas'
 #     inputs:
 #       awsCredentials: '$(awsServiceConnection)'
 #       regionName: '$(awsRegion)'
@@ -235,7 +291,7 @@ stages:
 #         ]
 #
 #   - task: CloudFormationCreateOrUpdateStack@1
-#     displayName: '06 - EventBridge'
+#     displayName: '07 - EventBridge'
 #     inputs:
 #       awsCredentials: '$(awsServiceConnection)'
 #       regionName: '$(awsRegion)'
@@ -250,7 +306,7 @@ stages:
 #         ]
 #
 #   - task: CloudFormationCreateOrUpdateStack@1
-#     displayName: '07 - Triggers'
+#     displayName: '08 - Triggers'
 #     inputs:
 #       awsCredentials: '$(awsServiceConnection)'
 #       regionName: '$(awsRegion)'
