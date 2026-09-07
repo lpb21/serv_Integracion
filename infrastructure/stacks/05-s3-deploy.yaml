@@ -29,7 +29,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      BucketName: !Sub 'banistmo-0465-swift-${Environment}-deployment'
+      BucketName: !Sub 's3-0465-000-swiftint-${Environment}-deployment'
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
