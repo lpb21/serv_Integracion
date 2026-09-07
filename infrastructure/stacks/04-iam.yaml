@@ -17,6 +17,38 @@ Parameters:
     Type: String
     Default: ''
     Description: Nombre de la cola FileAct del core (opcional)
+    banistmoapplicationcode:
+    Type: String
+
+  banistmobillingmode:
+    Type: String
+
+  repository:
+    Type: String
+
+  tecenvironmenttype:
+    Type: String
+
+  banistmoapplicationoffice:
+    Type: String
+
+  banistmocumplimiento:
+    Type: String
+
+  banistmoclasificaciondisponibilidad:
+    Type: String
+
+  banistmoclasificacionintegridad:
+    Type: String
+
+  banistmoclasificacionconfidencialidad:
+    Type: String
+
+  banistmodominioinformacion:
+    Type: String
+
+  banistmodatospersonales:
+    Type: String
 
 Conditions:
   HasFileActQueue: !Not [!Equals [!Ref CoreFileActQueueName, '']]
