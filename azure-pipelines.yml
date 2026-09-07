@@ -161,22 +161,7 @@ stages:
               templateFile: '$(templatesPath)/04-iam.yaml'
               onFailure: 'DO_NOTHING'
               capabilities: 'CAPABILITY_NAMED_IAM'
-              parametersSource: 'inline'
-              parameters: |
-                [
-                  { "ParameterKey": "Environment", "ParameterValue": "${{ parameters.environment }}" },
-                  { "ParameterKey": "banistmoapplicationcode", "ParameterValue": "bip-cld-0465-000-swift-alliance-cloud" },
-                  { "ParameterKey": "banistmobillingmode", "ParameterValue": "unico" },
-                  { "ParameterKey": "repository", "ParameterValue": "bipcld0465000-cnf-swift-int-alliance-cloud" },
-                  { "ParameterKey": "tecenvironmenttype", "ParameterValue": "${{ parameters.environment }}" },
-                  { "ParameterKey": "banistmoapplicationoffice", "ParameterValue": "14302" },
-                  { "ParameterKey": "banistmocumplimiento", "ParameterValue": "sox-bia" },
-                  { "ParameterKey": "banistmoclasificaciondisponibilidad", "ParameterValue": "impacto-critico" },
-                  { "ParameterKey": "banistmoclasificacionintegridad", "ParameterValue": "impacto-critico" },
-                  { "ParameterKey": "banistmoclasificacionconfidencialidad", "ParameterValue": "confidencial" },
-                  { "ParameterKey": "banistmodominioinformacion", "ParameterValue": "productos-activos-financiera-riesgos-seguridad" },
-                  { "ParameterKey": "banistmodatospersonales", "ParameterValue": "clientes-proveedores-empleados-accionistas" }
-                ]
+              templateParametersFile: 'infrastructure/parameters/dev-iam.json'
               tags: |
                 banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
                 banistmo:billing-mode=unico
