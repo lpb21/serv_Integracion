@@ -282,7 +282,7 @@ stages:
               stackName: '$(stackPrefix)-lambdas'
               templateSource: 'file'
               templateFile: '$(templatesPath)/06-lambdas.yaml'
-              onFailure: 'DO_NOTHING'
+              onFailure: 'DELETE'
               capabilities: 'CAPABILITY_NAMED_IAM'
               templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-lambdas.json'
               tags: |
@@ -299,21 +299,32 @@ stages:
                 banistmo:datos-personales=clientes-proveedores-empleados-accionistas
                 Project=swift-sqs-connector
                 DeployedBy=azure-pipelines
-#
-#   - task: CloudFormationCreateOrUpdateStack@1
-#     displayName: '07 - EventBridge'
-#     inputs:
-#       awsCredentials: '$(awsServiceConnection)'
-#       regionName: '$(awsRegion)'
-#       stackName: '$(stackPrefix)-eventbridge'
-#       templateSource: 'file'
-#       templateFile: '$(templatesPath)/06-eventbridge.yaml'
-#       onFailure: 'DELETE'
-#       parametersSource: 'inline'
-#       parameters: |
-#         [
-#           { "ParameterKey": "Environment", "ParameterValue": "${{ parameters.environment }}" }
-#         ]
+
+
+          # ── 07 - EventBridge (depende de 06-lambdas) ────────────────────
+          - task: CloudFormationCreateOrUpdateStack@1
+            displayName: '07 - EventBridge'
+            inputs:
+              awsCredentials: '$(awsServiceConnection)'
+              regionName: '$(awsRegion)'
+              stackName: '$(stackPrefix)-eventbridge'
+              templateSource: 'file'
+              templateFile: '$(templatesPath)/07-eventbridge.yaml'
+              onFailure: 'DO_NOTHING'
+              tags: |
+                banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
+                banistmo:billing-mode=unico
+                banistmo:repository=bipcld0465000-cnf-swift-int-alliance-cloud
+                banistmo:tec:environment-type=${{ parameters.environment }}
+                banistmo:application-office=14302
+                banistmo:cumplimiento=sox-bia
+                banistmo:clasificacion-disponibilidad=impacto-critico
+                banistmo:clasificacion-integridad=impacto-critico
+                banistmo:clasificacion-confidencialidad=confidencial
+                banistmo:dominio-informacion=productos-activos-financiera-riesgos-seguridad
+                banistmo:datos-personales=clientes-proveedores-empleados-accionistas
+                Project=swift-sqs-connector
+                DeployedBy=azure-pipelines
 #
 #   - task: CloudFormationCreateOrUpdateStack@1
 #     displayName: '08 - Triggers'
