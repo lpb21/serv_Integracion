@@ -1,0 +1,4 @@
+[
+  { "ParameterKey": "Environment", "ParameterValue": "dev" },
+  { "ParameterKey": "DeployBucketName", "ParameterValue": "s3-0465-000-swiftint-dev-deployment" }
+]

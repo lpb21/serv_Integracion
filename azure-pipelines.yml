@@ -186,7 +186,7 @@ stages:
               stackName: '$(stackPrefix)-s3-deploy'
               templateSource: 'file'
               templateFile: '$(templatesPath)/05-s3-deploy.yaml'
-              onFailure: 'DO_NOTHING'
+              onFailure: 'DELETE'
               templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-s3.json'
               tags: |
                 banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
@@ -273,22 +273,32 @@ stages:
 #
 # Plantilla de referencia para cada una (aqui se pueden ajustar los parametros segun cada stack):
 #
-#   - task: CloudFormationCreateOrUpdateStack@1
-#     displayName: '06 - Lambdas'
-#     inputs:
-#       awsCredentials: '$(awsServiceConnection)'
-#       regionName: '$(awsRegion)'
-#       stackName: '$(stackPrefix)-lambdas'
-#       templateSource: 'file'
-#       templateFile: '$(templatesPath)/05-lambdas.yaml'
-#       onFailure: 'DELETE'
-#       capabilities: 'CAPABILITY_NAMED_IAM'
-#       parametersSource: 'inline'
-#       parameters: |
-#         [
-#           { "ParameterKey": "Environment", "ParameterValue": "${{ parameters.environment }}" },
-#           { "ParameterKey": "DeployBucketName", "ParameterValue": "<<< BUCKET_DE_DESPLIEGUE >>>" }
-#         ]
+          # ── 06 - Lambdas (depende de 01-05, requiere ZIPs en S3) ────────
+          - task: CloudFormationCreateOrUpdateStack@1
+            displayName: '06 - Lambdas'
+            inputs:
+              awsCredentials: '$(awsServiceConnection)'
+              regionName: '$(awsRegion)'
+              stackName: '$(stackPrefix)-lambdas'
+              templateSource: 'file'
+              templateFile: '$(templatesPath)/06-lambdas.yaml'
+              onFailure: 'DO_NOTHING'
+              capabilities: 'CAPABILITY_NAMED_IAM'
+              templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-lambdas.json'
+              tags: |
+                banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
+                banistmo:billing-mode=unico
+                banistmo:repository=bipcld0465000-cnf-swift-int-alliance-cloud
+                banistmo:tec:environment-type=${{ parameters.environment }}
+                banistmo:application-office=14302
+                banistmo:cumplimiento=sox-bia
+                banistmo:clasificacion-disponibilidad=impacto-critico
+                banistmo:clasificacion-integridad=impacto-critico
+                banistmo:clasificacion-confidencialidad=confidencial
+                banistmo:dominio-informacion=productos-activos-financiera-riesgos-seguridad
+                banistmo:datos-personales=clientes-proveedores-empleados-accionistas
+                Project=swift-sqs-connector
+                DeployedBy=azure-pipelines
 #
 #   - task: CloudFormationCreateOrUpdateStack@1
 #     displayName: '07 - EventBridge'
