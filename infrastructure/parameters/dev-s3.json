@@ -5,5 +5,10 @@
   { "ParameterKey": "banistmoclasificacionconfidencialidad", "ParameterValue": "confidencial" },
   { "ParameterKey": "banistmocumplimiento", "ParameterValue": "sox-bia" },
   { "ParameterKey": "banistmodominioinformacion", "ParameterValue": "productos-activos-financiera-riesgos-seguridad" },
-  { "ParameterKey": "banistmodatospersonales", "ParameterValue": "clientes-proveedores-empleados-accionistas" }
+  { "ParameterKey": "banistmodatospersonales", "ParameterValue": "clientes-proveedores-empleados-accionistas" },
+  { "ParameterKey": "banistmoapplicationcode", "ParameterValue": "bip-cld-0465-000-swift-alliance-cloud" },
+  { "ParameterKey": "banistmobillingmode", "ParameterValue": "unico" },
+  { "ParameterKey": "repository", "ParameterValue": "bipcld0465000-cnf-swift-int-alliance-cloud" },
+  { "ParameterKey": "tecenvironmenttype", "ParameterValue": "dev" },
+  { "ParameterKey": "banistmoapplicationoffice", "ParameterValue": "14302" }
 ]

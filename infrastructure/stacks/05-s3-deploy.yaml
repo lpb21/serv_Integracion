@@ -21,6 +21,16 @@ Parameters:
     Type: String
   banistmodatospersonales:
     Type: String
+  banistmoapplicationcode:
+    Type: String
+  banistmobillingmode:
+    Type: String
+  repository:
+    Type: String
+  tecenvironmenttype:
+    Type: String
+  banistmoapplicationoffice:
+    Type: String
 
 Resources:
 
@@ -60,6 +70,16 @@ Resources:
           Value: !Ref banistmodominioinformacion
         - Key: banistmo:datos-personales
           Value: !Ref banistmodatospersonales
+        - Key: banistmo:application-code
+          Value: !Ref banistmoapplicationcode
+        - Key: banistmo:billing-mode
+          Value: !Ref banistmobillingmode
+        - Key: banistmo:repository
+          Value: !Ref repository
+        - Key: banistmo:tec:environment-type
+          Value: !Ref tecenvironmenttype
+        - Key: banistmo:application-office
+          Value: !Ref banistmoapplicationoffice
 
 
   DeploymentBucketPolicy:
