@@ -1,0 +1,67 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Swift SQS Connector — S3 Deploy Bucket
+  Bucket de artefactos para el codigo empaquetado de las Lambdas.
+  Block public access, versioning y cifrado SSE-S3 (AES256).
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, qa, prod]
+
+  banistmoclasificaciondisponibilidad:
+    Type: String
+
+  banistmoclasificacionintegridad:
+    Type: String
+
+  banistmoclasificacionconfidencialidad:
+    Type: String
+
+Resources:
+
+  DeploymentBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub 'banistmo-0465-swift-${Environment}-deployment'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: s3-deploy
+        - Key: banistmo:clasificacion-disponibilidad
+          Value: !Ref banistmoclasificaciondisponibilidad
+        - Key: banistmo:clasificacion-integridad
+          Value: !Ref banistmoclasificacionintegridad
+        - Key: banistmo:clasificacion-confidencialidad
+          Value: !Ref banistmoclasificacionconfidencialidad
+
+Outputs:
+
+  DeploymentBucketName:
+    Description: Nombre del bucket de despliegue
+    Value: !Ref DeploymentBucket
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-deploy-bucket-name'
+
+  DeploymentBucketArn:
+    Description: ARN del bucket de despliegue
+    Value: !GetAtt DeploymentBucket.Arn
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-deploy-bucket-arn'

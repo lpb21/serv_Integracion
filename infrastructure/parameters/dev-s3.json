@@ -1,0 +1,6 @@
+[
+  { "ParameterKey": "Environment", "ParameterValue": "dev" },
+  { "ParameterKey": "banistmoclasificaciondisponibilidad", "ParameterValue": "impacto-critico" },
+  { "ParameterKey": "banistmoclasificacionintegridad", "ParameterValue": "impacto-critico" },
+  { "ParameterKey": "banistmoclasificacionconfidencialidad", "ParameterValue": "confidencial" }
+]
