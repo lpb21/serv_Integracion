@@ -9,14 +9,17 @@ Parameters:
     Type: String
     Default: dev
     AllowedValues: [dev, qa, prod]
-
   banistmoclasificaciondisponibilidad:
     Type: String
-
   banistmoclasificacionintegridad:
     Type: String
-
   banistmoclasificacionconfidencialidad:
+    Type: String
+  banistmocumplimiento:
+    Type: String
+  banistmodominioinformacion:
+    Type: String
+  banistmodatospersonales:
     Type: String
 
 Resources:
@@ -51,6 +54,12 @@ Resources:
           Value: !Ref banistmoclasificacionintegridad
         - Key: banistmo:clasificacion-confidencialidad
           Value: !Ref banistmoclasificacionconfidencialidad
+        - Key: banistmo:cumplimiento
+          Value: !Ref banistmocumplimiento
+        - Key: banistmo:dominio-informacion
+          Value: !Ref banistmodominioinformacion
+        - Key: banistmo:datos-personales
+          Value: !Ref banistmodatospersonales
 
 Outputs:
 

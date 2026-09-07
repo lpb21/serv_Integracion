@@ -2,5 +2,8 @@
   { "ParameterKey": "Environment", "ParameterValue": "dev" },
   { "ParameterKey": "banistmoclasificaciondisponibilidad", "ParameterValue": "impacto-critico" },
   { "ParameterKey": "banistmoclasificacionintegridad", "ParameterValue": "impacto-critico" },
-  { "ParameterKey": "banistmoclasificacionconfidencialidad", "ParameterValue": "confidencial" }
+  { "ParameterKey": "banistmoclasificacionconfidencialidad", "ParameterValue": "confidencial" },
+  { "ParameterKey": "banistmocumplimiento", "ParameterValue": "sox-bia" },
+  { "ParameterKey": "banistmodominioinformacion", "ParameterValue": "productos-activos-financiera-riesgos-seguridad" },
+  { "ParameterKey": "banistmodatospersonales", "ParameterValue": "clientes-proveedores-empleados-accionistas" }
 ]
