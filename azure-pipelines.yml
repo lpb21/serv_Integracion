@@ -1,23 +1,33 @@
 # ============================================================================
 # Pipeline de despliegue — Swift SQS Connector (infraestructura)
 # ============================================================================
-# Despliega los stacks de CloudFormation en AWS, EN ORDEN (01 -> 07).
-# El orden es obligatorio y necesario: cada stack importa Exports del anterior
+# Despliega los stacks de CloudFormation en AWS, EN ORDEN (01 -> 08).
+# El orden es obligatorio: cada stack importa Exports del anterior
 # (Fn::ImportValue), asi que no pueden desplegarse en paralelo ni desordenados.
 #
-# REQUISITOS antes de ejecutar:
-#   1. La extension "AWS Toolkit for Azure DevOps" debe estar instalada en la
-#      organizacion (provee la tarea CloudFormationCreateOrUpdateStack).
-#   2. Debe existir un "AWS Service Connection" configurado en Azure DevOps
-#      con permisos para desplegar CloudFormation en la cuenta destino.
-#      -> Reemplazar el placeholder AWS_SERVICE_CONNECTION mas abajo.
-#   3. Confirmar la region de despliegue (placeholder AWS_REGION).
+# Orden de stacks:
+#   01 - KMS          clave de cifrado
+#   02 - DynamoDB     tabla de credenciales/token (cifrada con KMS)
+#   03 - SQS          colas propias del conector (DLQ, send-results, async-dlq)
+#   04 - IAM          rol de ejecucion de las Lambdas
+#   05 - S3 Deploy    bucket de artefactos para los ZIPs
+#   >> Empaquetado    genera y sube los ZIPs de las 4 Lambdas al bucket
+#   06 - Lambdas      las 4 funciones + log groups
+#   07 - EventBridge  schedules (token-refresher, message-poller)
+#   08 - Triggers     event source mappings (colas outbound -> sender) + async config
 #
-# NOTA sobre los stacks 05-07:
-#   Los stacks de Lambdas (05), EventBridge (06) y Triggers (07) dependen del
-#   CODIGO de las Lambdas (empaquetado y subido). Mientras tanto,
-#   se quedan COMENTADOS al final de este archivo. Cuando el codigo este listo,
-#   los descomento y se agrego el paso de empaquetado/subida previo.
+# REQUISITOS antes de ejecutar:
+#   1. Extension "AWS Toolkit for Azure DevOps" instalada en la organizacion
+#      (provee CloudFormationCreateOrUpdateStack y AWSShellScript).
+#   2. "AWS Service Connection" configurado con permisos de CloudFormation
+#      sobre la cuenta destino (variable awsServiceConnection).
+#   3. Region de despliegue (variable awsRegion).
+#
+# NOTA - colas dummy del core (solo dev):
+#   El stack 08 depende de las colas outbound del core. En dev estas se
+#   simulan con colas dummy (00-dev-dummy-core-queues.yaml) que se despliegan
+#   MANUALMENTE, fuera de este pipeline (en prod se apunta a las colas reales
+#   de Cobis). Deben existir antes de correr el 08.
 # ============================================================================
 
 # El disparo esta MANUAL. No se ejecuta solo con push/merge, para evitar despliegues
@@ -177,7 +187,14 @@ stages:
                 Project=swift-sqs-connector
                 DeployedBy=azure-pipelines
 
-          
+
+          # ── 05 - S3 Deploy ──────────────────────────────────────────────
+          # Crea el bucket de artefactos donde se suben los ZIPs de las Lambdas.
+          # Debe desplegarse ANTES del empaquetado (que sube los ZIPs) y del
+          # stack 06-lambdas (que los referencia como Code S3Bucket/S3Key).
+          # El bucket lleva cifrado AES256, block public access, versioning,
+          # OwnershipControls (BucketOwnerEnforced) y policy HTTPS, requeridos
+          # por el hook Banistmo::S3Bucket.
           - task: CloudFormationCreateOrUpdateStack@1
             displayName: '05 - S3 Deploy'
             inputs:
@@ -258,21 +275,8 @@ stages:
                   aws s3 cp "$BUILD_DIR/$LAMBDA.zip" "s3://$BUCKET/$LAMBDA.zip"
                   echo "Subido: $LAMBDA.zip"
                 done
-# ============================================================================
-# PENDIENTE - Stacks 05, 06 y 07
-# ============================================================================
-# Estos stacks despliegan las Lambdas y su orquestacion. Requieren que el
-# CODIGO de las funciones (token-refresher, message-poller, message-dispatcher,
-# message-sender) exista, que este empaquetado y subido (un bucket S3
-# indicado por el parametro DeployBucketName del stack 05).
-#
-# Cuando el codigo este listo, el flujo sera el siguiente:
-#   1. Un paso previo que empaquete el codigo (pip install -r requirements.txt + empaquetar código y shared/ en zip).
-#   2. Un paso que suba el paquete al bucket de despliegue.
-#   3. Descomentar y completar las tareas 05, 06 y 07 abajo, en este orden.
-#
-# Plantilla de referencia para cada una (aqui se pueden ajustar los parametros segun cada stack):
-#
+
+
           # ── 06 - Lambdas (depende de 01-05, requiere ZIPs en S3) ────────
           - task: CloudFormationCreateOrUpdateStack@1
             displayName: '06 - Lambdas'
@@ -325,7 +329,8 @@ stages:
                 banistmo:datos-personales=clientes-proveedores-empleados-accionistas
                 Project=swift-sqs-connector
                 DeployedBy=azure-pipelines
-#
+
+
           # ── 08 - Triggers (depende de 03-sqs, 06-lambdas y colas dummy) ──
           - task: CloudFormationCreateOrUpdateStack@1
             displayName: '08 - Triggers'
