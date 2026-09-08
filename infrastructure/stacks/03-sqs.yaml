@@ -107,6 +107,27 @@ Resources:
         - Key: banistmo:clasificacion-confidencialidad
           Value: !Ref banistmoclasificacionconfidencialidad
 
+  # ── DLQ estándar para fallos de invocación asíncrona del dispatcher ───────
+  # Lambda async NO acepta FIFO como destino OnFailure, por eso es estándar.
+  DispatcherAsyncDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'swift-sqs-${Environment}-dispatcher-async-dlq'
+      MessageRetentionPeriod: 1209600   # 14 días
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: sqs
+        - Key: banistmo:clasificacion-disponibilidad
+          Value: !Ref banistmoclasificaciondisponibilidad
+        - Key: banistmo:clasificacion-integridad
+          Value: !Ref banistmoclasificacionintegridad
+        - Key: banistmo:clasificacion-confidencialidad
+          Value: !Ref banistmoclasificacionconfidencialidad
+
 Outputs:
 
   # ── DLQ ──────────────────────────────────────────────────────────────────
@@ -121,6 +142,12 @@ Outputs:
     Value: !GetAtt DeadLetterQueue.Arn
     Export:
       Name: !Sub 'swift-sqs-${Environment}-dlq-arn'
+
+  DispatcherAsyncDlqArn:
+    Description: ARN de la DLQ estándar para fallos async del dispatcher
+    Value: !GetAtt DispatcherAsyncDlq.Arn
+    Export:
+      Name: !Sub 'swift-sqs-${Environment}-dispatcher-async-dlq-arn'
 
   # ── Send Results ──────────────────────────────────────────────────────────
   SendResultsUrl:

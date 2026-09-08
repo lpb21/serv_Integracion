@@ -106,7 +106,7 @@ Resources:
       DestinationConfig:
         OnFailure:
           Destination:
-            Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dlq-arn'
+            Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dispatcher-async-dlq-arn'
 
 Outputs:
 
