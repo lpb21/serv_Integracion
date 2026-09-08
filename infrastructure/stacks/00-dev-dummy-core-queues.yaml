@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Swift SQS Connector — Colas dummy del core (SOLO DEV)
+  Simulan las colas de Cobis para probar el flujo en dev.
+  1 inbound (MT+MX) + 2 outbound (MT, MX). Todas FIFO.
+  En prod NO se despliega: alli se apunta a las colas reales de Cobis.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev]
+  banistmoclasificaciondisponibilidad:
+    Type: String
+  banistmoclasificacionintegridad:
+    Type: String
+  banistmoclasificacionconfidencialidad:
+    Type: String
+
+Resources:
+
+  CoreInboundQueueDummy:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'dev-swift-queue.fifo'
+      FifoQueue: true
+      ContentBasedDeduplication: false
+      VisibilityTimeout: 60
+      MessageRetentionPeriod: 86400
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: dummy-core-queues
+        - Key: banistmo:clasificacion-disponibilidad
+          Value: !Ref banistmoclasificaciondisponibilidad
+        - Key: banistmo:clasificacion-integridad
+          Value: !Ref banistmoclasificacionintegridad
+        - Key: banistmo:clasificacion-confidencialidad
+          Value: !Ref banistmoclasificacionconfidencialidad
+
+  CoreOutboundMtQueueDummy:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'dev-swift-output-queue.fifo'
+      FifoQueue: true
+      ContentBasedDeduplication: false
+      VisibilityTimeout: 60
+      MessageRetentionPeriod: 86400
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: dummy-core-queues
+        - Key: banistmo:clasificacion-disponibilidad
+          Value: !Ref banistmoclasificaciondisponibilidad
+        - Key: banistmo:clasificacion-integridad
+          Value: !Ref banistmoclasificacionintegridad
+        - Key: banistmo:clasificacion-confidencialidad
+          Value: !Ref banistmoclasificacionconfidencialidad
+
+  CoreOutboundMxQueueDummy:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub 'dev-swift-output-mx-queue.fifo'
+      FifoQueue: true
+      ContentBasedDeduplication: false
+      VisibilityTimeout: 60
+      MessageRetentionPeriod: 86400
+      Tags:
+        - Key: Project
+          Value: swift-sqs-connector
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Stack
+          Value: dummy-core-queues
+        - Key: banistmo:clasificacion-disponibilidad
+          Value: !Ref banistmoclasificaciondisponibilidad
+        - Key: banistmo:clasificacion-integridad
+          Value: !Ref banistmoclasificacionintegridad
+        - Key: banistmo:clasificacion-confidencialidad
+          Value: !Ref banistmoclasificacionconfidencialidad
+
+Outputs:
+  InboundQueueUrl:
+    Value: !Ref CoreInboundQueueDummy
+  OutboundMtQueueUrl:
+    Value: !Ref CoreOutboundMtQueueDummy
+  OutboundMxQueueUrl:
+    Value: !Ref CoreOutboundMxQueueDummy
