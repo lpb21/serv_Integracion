@@ -29,10 +29,10 @@ Parameters:
 
   SenderBatchSize:
     Type: Number
-    Default: 50
+    Default: 10
     MinValue: 1
-    MaxValue: 10000
-    Description: Número de mensajes SQS por invocación del sender
+    MaxValue: 10
+    Description: Número de mensajes SQS por invocación del sender (máx 10 en FIFO)
 
   SenderBatchingWindowSeconds:
     Type: Number
