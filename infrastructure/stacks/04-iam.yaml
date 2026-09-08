@@ -93,6 +93,7 @@ Resources:
                   - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-core-inbound-arn'
                   - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dlq-arn'
                   - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-send-results-arn'
+                  - Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dispatcher-async-dlq-arn'
 
               # ── SQS — consumir cola outbound del core ─────────────────────
               - Sid: SQSConsumeOutbound
