@@ -46,7 +46,7 @@ parameters:
       - qa
       - prod
 
-# Variables reutilizables. Reemplazar los placeholders marcados con <<< >>>.
+
 variables:
   # Nombre EXACTO del AWS Service Connection configurado en Azure DevOps.
   awsServiceConnection: 'bank-2027_banistmo_desarrollo_swift-dev-aws'
@@ -229,6 +229,7 @@ stages:
             displayName: 'Empaquetar y subir Lambdas a S3'
             inputs:
               awsCredentials: '$(awsServiceConnection)'
+              regionName: '$(awsRegion)'
               scriptType: 'inline'
               inlineScript: |
                 set -e
@@ -274,6 +275,15 @@ stages:
                   # 5. subir a S3
                   aws s3 cp "$BUILD_DIR/$LAMBDA.zip" "s3://$BUCKET/$LAMBDA.zip"
                   echo "Subido: $LAMBDA.zip"
+
+                  # 6. forzar que la Lambda tome el ZIP nuevo (si la función ya existe)
+                  aws lambda update-function-code \
+                    --function-name "swift-sqs-${{ parameters.environment }}-$LAMBDA" \
+                    --s3-bucket "$BUCKET" \
+                    --s3-key "$LAMBDA.zip" \
+                    --publish > /dev/null \
+                    && echo "Actualizada función: swift-sqs-${{ parameters.environment }}-$LAMBDA" \
+                    || echo "Función aún no existe (primer deploy), se creará en el stack 06"
                 done
 
 
