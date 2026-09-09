@@ -22,6 +22,24 @@ from shared.swift_signature import build_swift_signature
 
 logger = logging.getLogger(__name__)
 
+class SwiftApiError(RuntimeError):
+    """
+    Error al invocar la API de Swift.
+
+    Atributos para diagnóstico:
+      status_code : código HTTP de la respuesta (429, 500, etc.)
+      swift_code  : código de error propio de Swift (del body)
+      severity    : severidad reportada por Swift (Transient / Fatal ...)
+      text        : mensaje descriptivo de Swift
+    """
+    def __init__(self, message, status_code=None, swift_code=None,
+                 severity=None, text=None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.swift_code = swift_code
+        self.severity = severity
+        self.text = text
+
 from shared.swift_env import SWIFT_ENV
 
 _BASE_URLS = {
@@ -99,15 +117,15 @@ def _swift_post(
                 time.sleep(delay)
                 continue
 
-            err = RuntimeError(
-                f"Swift upload error {e.code}: {error_body.get('text', 'unknown')}"
+            raise SwiftApiError(
+                f"Swift upload error {e.code}: {error_body.get('text', 'unknown')}",
+                status_code=e.code,
+                swift_code=error_body.get("code"),
+                severity=severity,
+                text=error_body.get("text"),
             )
-            err.status_code = e.code
-            err.swift_code  = error_body.get("code")
-            err.severity    = severity
-            raise err
 
-    raise RuntimeError("Max retries exceeded")
+    raise SwiftApiError("Max retries exceeded", severity="Transient")
 
 
 def send_fin_message(token: str, message: dict, credentials: dict) -> dict:
