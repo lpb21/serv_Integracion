@@ -20,7 +20,8 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-SWIFT_ENV = os.environ.get("SWIFT_ENV", "sandbox")
+# """SWIFT_ENV = os.environ.get("SWIFT_ENV", "sandbox")"""
+from shared.swift_env import SWIFT_ENV
 
 _BASE_URLS = {
     "sandbox": "https://sandbox.swift.com/alliancecloud/v2",

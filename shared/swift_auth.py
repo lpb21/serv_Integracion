@@ -29,7 +29,8 @@ from cryptography.x509 import load_pem_x509_certificate
 
 logger = logging.getLogger(__name__)
 
-SWIFT_ENV = os.environ.get("SWIFT_ENV", "sandbox")
+# SWIFT_ENV = os.environ.get("SWIFT_ENV", "sandbox")
+from shared.swift_env import SWIFT_ENV
 
 _CONFIG = {
     "sandbox": {
