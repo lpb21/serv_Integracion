@@ -81,7 +81,7 @@ def lambda_handler(event, context):
                 f'id={distribution_id} messageId={result["MessageId"]}')
 
     # 5. ACK a Swift - DESPUES de publicar exitosamente en SQS.
-    ack_distribution(token, distribution_id)
+    ack_distribution(token, downloaded['distribution_id'])
 
     return {'statusCode': 200, 'distributionId': distribution_id}
 

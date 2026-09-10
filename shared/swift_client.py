@@ -168,6 +168,9 @@ def download_distribution(token: str, distribution: dict) -> dict:
     en sandbox ese href apunta al dominio de prod, así que _swift_request debe
     combinarlo con el BASE_URL del entorno actual.
 
+    El distribution_id devuelto es el ID REAL del payload (distribution.id),
+    NO el id de la lista — el ACK debe hacerse con ese id real.
+
     Returns:
         dict con payload, integrity, distribution_id, service, dist_type
     """
@@ -177,26 +180,19 @@ def download_distribution(token: str, distribution: dict) -> dict:
 
     path, method = _resolve_download_path(dist_id, service, dist_type)
 
-    logger.info(f"download_distribution: path={path} method={method}")
-
     body = None
     if service == "fileAct" and method == "POST":
         callback = os.environ.get("FILEACT_CALLBACK_URL", "")
         body = {"callback_url": callback}
 
     data, integrity = _swift_request(token, path, method=method, body=body)
-    logger.info(f"download_distribution: raw data keys={list(data.keys()) if isinstance(data, dict) else type(data)}")
-        # Log temporal: comparar el id de la lista vs el id real del payload
-    if isinstance(data, dict) and "distribution" in data:
-        real_id = data["distribution"].get("id")
-        logger.info(f"download_distribution: list_id={dist_id} payload_distribution_id={real_id}")
 
+    # El distribution.id real viene dentro del payload y difiere del id de la lista.
+    real_dist_id = dist_id
     if isinstance(data, dict) and "distribution" in data:
-        real_id = data["distribution"].get("id")
-        links   = data["distribution"].get("links", [])
-        ack_link = next((l["href"] for l in links if l.get("rel") == "ack"), None)
-        logger.info(f"download_distribution: list_id={dist_id} payload_id={real_id} ack_link={ack_link}")
-    
+        real_dist_id = data["distribution"].get("id", dist_id)
+
+    # El payload real está en la clave distinta de "distribution" (message/export/etc.)
     payload_value = None
     if isinstance(data, dict):
         for k, v in data.items():
@@ -207,7 +203,7 @@ def download_distribution(token: str, distribution: dict) -> dict:
     return {
         "payload":         payload_value,
         "integrity":       integrity,
-        "distribution_id": dist_id,
+        "distribution_id": real_dist_id,     # ← id REAL del payload (para el ACK)
         "service":         service,
         "dist_type":       dist_type,
     }
