@@ -66,7 +66,8 @@ def _swift_request(
         try:
             with urllib.request.urlopen(req) as resp:
                 integrity = resp.headers.get("X-SWIFT-Integrity")
-                data      = json.loads(resp.read())
+                raw       = resp.read()
+                data      = json.loads(raw) if raw else {}   # ACK/204 devuelven body vacío
                 return data, integrity
 
         except urllib.error.HTTPError as e:
