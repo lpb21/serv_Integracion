@@ -81,7 +81,7 @@ def build_sqs_message(downloaded: dict) -> dict:
     integrity       = downloaded.get('integrity')
     distribution_id = downloaded.get('distribution_id')
     service         = downloaded.get('service')
-    dist_type       = downloaded.get('type')
+    dist_type       = downloaded.get('dist_type')
  
     # Decodificar payload de base64 a texto plano
     try:
@@ -104,7 +104,7 @@ def build_sqs_message(downloaded: dict) -> dict:
         },
         'distributionType': {
             'DataType':    'String',
-            'StringValue': dist_type,
+            'StringValue': str(dist_type or ''),
         },
         'swiftEnv': {
             'DataType':    'String',
