@@ -179,7 +179,7 @@ def download_distribution(token: str, distribution: dict) -> dict:
     if download_link:
         # Extraer path de la URL completa
         from urllib.parse import urlparse
-        path   = urlparse(download_link).path
+        path   = download_link
         method = "POST" if service == "fileAct" else "GET"
     else:
         path, method = _resolve_download_path(dist_id, service, dist_type)
