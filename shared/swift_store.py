@@ -33,7 +33,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import boto3
-from boto3.dynamodb.types import TypeSerializer, TypeDeserializer
+from boto3.dynamodb.types import TypeSerializer, TypeDeserializer, Binary
 from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,15 @@ def _db_get(pk: str) -> Optional[dict]:
     item = response.get("Item")
     if not item:
         return None
-    return {k: _deserializer.deserialize(v) for k, v in item.items()}
+    result = {}
+    for k, v in item.items():
+        deserialized = _deserializer.deserialize(v)
+        # TypeDeserializer devuelve los Binary como objeto Binary de boto3;
+        # KMS espera bytes puro, así que lo convertimos.
+        if isinstance(deserialized, Binary):
+            deserialized = bytes(deserialized)
+        result[k] = deserialized
+    return result
 
 
 def _db_put(item: dict) -> None:
