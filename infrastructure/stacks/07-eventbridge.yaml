@@ -8,7 +8,7 @@ Description: >
   Deploy order: 6 de 7 — depende de: 05-lambdas
 
   Reglas:
-    rate(50 minutes) → token-refresher
+    rate(25 minutes) → token-refresher
     rate(N minutes)  → message-poller (configurable)
 
 Parameters:
@@ -33,7 +33,7 @@ Resources:
     Properties:
       Name: !Sub 'swift-sqs-${Environment}-token-refresh'
       Description: !Sub 'Refresca el Bearer token de Swift cada 50 min (${Environment})'
-      ScheduleExpression: rate(50 minutes)
+      ScheduleExpression: rate(25 minutes)
       State: ENABLED
       Targets:
         - Id: TokenRefresherTarget
