@@ -82,14 +82,10 @@ def build_sqs_message(downloaded: dict) -> dict:
     distribution_id = downloaded.get('distribution_id')
     service         = downloaded.get('service')
     dist_type       = downloaded.get('dist_type')
- 
-    # Decodificar payload de base64 a texto plano
+
+    # payload es base64 -> texto plano
     try:
-        payload_data = payload.get('payload') if isinstance(payload, dict) else payload
-        if isinstance(payload_data, str):
-            raw_payload = base64.b64decode(payload_data).decode('utf-8')
-        else:
-            raw_payload = json.dumps(payload_data)
+        raw_payload = base64.b64decode(payload).decode('utf-8')
     except Exception:
         raw_payload = payload if isinstance(payload, str) else json.dumps(payload)
  
