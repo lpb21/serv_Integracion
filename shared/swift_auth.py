@@ -36,17 +36,17 @@ _CONFIG = {
     "sandbox": {
         "base_url":  "https://sandbox.swift.com",
         "token_uri": "/oauth2/v1/token",
-        "scope":     "swift.alliancecloud.api",
+        "scope":     "swift.alliancecloud.api/access_to_service",
     },
     "test": {
         "base_url":  "https://api-test.swiftnet.sipn.swift.com",
         "token_uri": "/oauth2/v1/token",
-        "scope":     "swift.alliancecloud.api",
+        "scope":     "swift.alliancecloud.api/access_to_service",
     },
     "prod": {
         "base_url":  "https://api.swiftnet.sipn.swift.com",
         "token_uri": "/oauth2/v1/token",
-        "scope":     "swift.alliancecloud.api",
+        "scope":     "swift.alliancecloud.api/access_to_service",
     },
 }
 
