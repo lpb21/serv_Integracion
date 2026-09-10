@@ -186,7 +186,6 @@ def download_distribution(token: str, distribution: dict) -> dict:
 
     data, integrity = _swift_request(token, path, method=method, body=body)
     logger.info(f"download_distribution: raw data keys={list(data.keys()) if isinstance(data, dict) else type(data)}")
-    logger.info(f"download_distribution: data={json.dumps(data)[:1000]}")   # primeros 1000 chars
     
     payload_value = None
     if isinstance(data, dict):
