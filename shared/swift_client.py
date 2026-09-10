@@ -189,6 +189,7 @@ def download_distribution(token: str, distribution: dict) -> dict:
         callback = os.environ.get("FILEACT_CALLBACK_URL", "")
         body = {"callback_url": callback}
 
+    logger.info(f"download_distribution: path={path} method={method}")
     data, integrity = _swift_request(token, path, method=method, body=body)
     return {
         "payload":         data,
