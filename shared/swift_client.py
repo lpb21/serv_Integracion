@@ -190,6 +190,12 @@ def download_distribution(token: str, distribution: dict) -> dict:
     if isinstance(data, dict) and "distribution" in data:
         real_id = data["distribution"].get("id")
         logger.info(f"download_distribution: list_id={dist_id} payload_distribution_id={real_id}")
+
+    if isinstance(data, dict) and "distribution" in data:
+        real_id = data["distribution"].get("id")
+        links   = data["distribution"].get("links", [])
+        ack_link = next((l["href"] for l in links if l.get("rel") == "ack"), None)
+        logger.info(f"download_distribution: list_id={dist_id} payload_id={real_id} ack_link={ack_link}")
     
     payload_value = None
     if isinstance(data, dict):
