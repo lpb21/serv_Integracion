@@ -32,7 +32,7 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: !Sub 'swift-sqs-${Environment}-token-refresh'
-      Description: !Sub 'Refresca el Bearer token de Swift cada 50 min (${Environment})'
+      Description: !Sub 'Refresca el Bearer token de Swift cada 25 min (${Environment})'
       ScheduleExpression: rate(25 minutes)
       State: ENABLED
       Targets:
