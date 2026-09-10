@@ -185,6 +185,10 @@ def download_distribution(token: str, distribution: dict) -> dict:
         body = {"callback_url": callback}
 
     data, integrity = _swift_request(token, path, method=method, body=body)
+    #Log temporal para debug, quitar en prod
+    logger.info(f"download_distribution: raw data keys={list(data.keys()) if isinstance(data, dict) else type(data)}")
+    logger.info(f"download_distribution: data={json.dumps(data)[:1000]}")   # primeros 1000 chars
+    return {...}
     return {
         "payload":         data,
         "integrity":       integrity,
