@@ -162,7 +162,10 @@ def _resolve_download_path(dist_id: int, service: str, dist_type: str) -> tuple[
 def download_distribution(token: str, distribution: dict) -> dict:
     """
     Descarga el payload de una distribución.
-    Usa el link rel:download si está disponible.
+
+    Se construye el path relativo (no se usa el href del link rel:download):
+    en sandbox ese href apunta al dominio de prod, así que _swift_request debe
+    combinarlo con el BASE_URL del entorno actual.
 
     Returns:
         dict con payload, integrity, distribution_id, service, dist_type
@@ -170,26 +173,16 @@ def download_distribution(token: str, distribution: dict) -> dict:
     dist_id   = distribution["id"]
     service   = distribution["service"]
     dist_type = distribution["type"]
-    links     = distribution.get("links", [])
 
-    download_link = next(
-        (lnk["href"] for lnk in links if lnk.get("rel") == "download"), None
-    )
+    path, method = _resolve_download_path(dist_id, service, dist_type)
 
-    if download_link:
-        # Extraer path de la URL completa
-        from urllib.parse import urlparse
-        path   = download_link
-        method = "POST" if service == "fileAct" else "GET"
-    else:
-        path, method = _resolve_download_path(dist_id, service, dist_type)
+    logger.info(f"download_distribution: path={path} method={method}")
 
     body = None
     if service == "fileAct" and method == "POST":
         callback = os.environ.get("FILEACT_CALLBACK_URL", "")
         body = {"callback_url": callback}
 
-    logger.info(f"download_distribution: path={path} method={method}")
     data, integrity = _swift_request(token, path, method=method, body=body)
     return {
         "payload":         data,
