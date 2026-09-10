@@ -186,6 +186,10 @@ def download_distribution(token: str, distribution: dict) -> dict:
 
     data, integrity = _swift_request(token, path, method=method, body=body)
     logger.info(f"download_distribution: raw data keys={list(data.keys()) if isinstance(data, dict) else type(data)}")
+        # Log temporal: comparar el id de la lista vs el id real del payload
+    if isinstance(data, dict) and "distribution" in data:
+        real_id = data["distribution"].get("id")
+        logger.info(f"download_distribution: list_id={dist_id} payload_distribution_id={real_id}")
     
     payload_value = None
     if isinstance(data, dict):
