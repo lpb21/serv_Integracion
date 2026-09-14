@@ -127,7 +127,9 @@ def _swift_post(
             except Exception:
                 error_body = {}
 
-            severity     = error_body.get("severity", "")
+            # Swift anida el detalle bajo "status"; algunos endpoints lo devuelven plano
+            status_obj   = error_body.get("status") or error_body
+            severity     = status_obj.get("severity", "")
             is_transient = e.code == 429 or (e.code >= 500 and severity == "Transient")
 
             if is_transient and attempt < max_retries:
@@ -138,11 +140,11 @@ def _swift_post(
                 continue
 
             raise SwiftApiError(
-                f"Swift upload error {e.code}: {error_body.get('text', 'unknown')}",
+                f"Swift upload error {e.code}: {status_obj.get('text', 'unknown')}",
                 status_code=e.code,
-                swift_code=error_body.get("code"),
+                swift_code=status_obj.get("code"),
                 severity=severity,
-                text=error_body.get("text"),
+                text=status_obj.get("text"),
             )
 
     raise SwiftApiError("Max retries exceeded", severity="Transient")
