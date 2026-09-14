@@ -109,9 +109,21 @@ def _swift_post(
             with urllib.request.urlopen(req) as resp:
                 return json.loads(resp.read())
 
+        # después
         except urllib.error.HTTPError as e:
+            raw_error = b""
             try:
-                error_body = json.loads(e.read())
+                raw_error = e.read()
+            except Exception:
+                pass
+
+            logger.error(
+                "Swift HTTP %s en %s — headers=%s body=%s",
+                e.code, path, dict(e.headers), raw_error[:2000].decode("utf-8", "replace"),
+            )
+
+            try:
+                error_body = json.loads(raw_error)
             except Exception:
                 error_body = {}
 
