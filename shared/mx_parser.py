@@ -98,6 +98,15 @@ def _build_payload_xml(raw_mx: str, apphdr_xml: str, document_xml: str) -> str:
 
     xml_decl_match = re.search(r'<\?xml[^?]*\?>', raw_mx)
     xml_decl = xml_decl_match.group(0) if xml_decl_match else '<?xml version="1.0" encoding="UTF-8"?>'
+
+    # Quitar declaración y comentarios para ver cuál es el primer elemento real
+    body = re.sub(r'<\?xml[^?]*\?>', '', raw_mx, count=1)
+    body = re.sub(r'<!--[\s\S]*?-->', '', body).strip()
+
+    # Sin wrapper solo si el primer elemento ES el AppHdr
+    if re.match(r'^<(?:[^:>]+:)?AppHdr[\s>]', body):
+        return raw_mx
+
     return f"{xml_decl}\n{apphdr_xml}\n{document_xml}"
 
 
