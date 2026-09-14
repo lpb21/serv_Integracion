@@ -79,9 +79,17 @@ def _swift_post(
     body_string = json.dumps(body, separators=(",", ":"))
     body_bytes  = body_string.encode()
 
+    def _usable(pem):
+        return bool(pem) and "BEGIN" in pem
+
+    has_real_creds = bool(credentials) and _usable(credentials.get("private_key_pem"))
+
+    if credentials and not has_real_creds:
+        logger.warning("Credenciales PKI no utilizables (env=%s) — enviando sin X-SWIFT-Signature", SWIFT_ENV)
+
     signature = (
         build_swift_signature(url, body_string, credentials)
-        if credentials else ""
+        if has_real_creds else ""
     )
 
     for attempt in range(max_retries + 1):

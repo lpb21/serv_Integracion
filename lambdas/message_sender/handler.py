@@ -40,7 +40,7 @@ logger.setLevel(logging.INFO)
 
 _sqs_client = None
 
-FATAL_KEYWORDS = ('not found', 'required', 'exceeds', 'cannot determine', 'cannot detect', 'missing', 'empty')
+FATAL_KEYWORDS = ('not found', 'required', 'exceeds', 'cannot determine', 'cannot detect', 'missing', 'empty', 'deserialize', 'key data')
 
 
 def _get_sqs_client():
