@@ -40,7 +40,7 @@ logger.setLevel(logging.INFO)
 
 _sqs_client = None
 
-FATAL_KEYWORDS = ('not found', 'required', 'exceeds', 'cannot determine', 'Cannot detect', 'missing', 'empty')
+FATAL_KEYWORDS = ('not found', 'required', 'exceeds', 'cannot determine', 'cannot detect', 'missing', 'empty')
 
 
 def _get_sqs_client():
@@ -135,7 +135,7 @@ def is_fatal(error) -> bool:
     status = getattr(error, 'status_code', None)
     if status and 400 <= status < 500:
         return True
-    msg = str(error).lower
+    msg = str(error).lower()
     return any(kw in msg for kw in FATAL_KEYWORDS)
 
 
