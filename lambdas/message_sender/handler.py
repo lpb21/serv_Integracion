@@ -40,7 +40,7 @@ logger.setLevel(logging.INFO)
 
 _sqs_client = None
 
-FATAL_KEYWORDS = ('not found', 'required', 'exceeds', 'Cannot detect', 'missing', 'empty')
+FATAL_KEYWORDS = ('not found', 'required', 'exceeds', 'cannot determine', 'Cannot detect', 'missing', 'empty')
 
 
 def _get_sqs_client():
@@ -92,6 +92,8 @@ def publish_result(sqs_message_id, swift_message, swift_response, service, fmt):
             'sqsMessageId':            sqs_message_id,
             'swiftEnv':                os.environ.get('SWIFT_ENV', 'sandbox'),
         }),
+        MessageGroupId=service or 'results',
+        MessageDeduplicationId=f"{swift_message['sender_reference']}-Accepted",
         MessageAttributes={
             'status':          {'DataType': 'String', 'StringValue': 'Accepted'},
             'service':         {'DataType': 'String', 'StringValue': service},
@@ -117,6 +119,8 @@ def publish_error(sqs_message_id, error, swift_message=None):
                 'sqsMessageId':     sqs_message_id,
                 'swiftEnv':         os.environ.get('SWIFT_ENV', 'sandbox'),
             }),
+            MessageGroupId='errors',
+            MessageDeduplicationId=f'{sqs_message_id}-Failed',
             MessageAttributes={
                 'status':    {'DataType': 'String', 'StringValue': 'Failed'},
                 'errorCode': {'DataType': 'String', 'StringValue': error_code},
@@ -131,7 +135,7 @@ def is_fatal(error) -> bool:
     status = getattr(error, 'status_code', None)
     if status and 400 <= status < 500:
         return True
-    msg = str(error)
+    msg = str(error).lower
     return any(kw in msg for kw in FATAL_KEYWORDS)
 
 
