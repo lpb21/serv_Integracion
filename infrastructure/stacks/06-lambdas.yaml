@@ -62,6 +62,9 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub 'swift-sqs-${Environment}-token-refresher'
+      DeadLetterConfig:
+        TargetArn:
+          Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dispatcher-async-dlq-arn'
       Description: Obtiene Bearer token de Swift OAuth2 y lo guarda cifrado en DynamoDB
       Runtime: python3.12
       Handler: handler.lambda_handler
@@ -135,6 +138,9 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub 'swift-sqs-${Environment}-message-dispatcher'
+      DeadLetterConfig:
+        TargetArn:
+          Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dispatcher-async-dlq-arn'
       Description: Descarga distribución Swift, decodifica payload y publica en SQS del core
       Runtime: python3.12
       Handler: handler.lambda_handler
@@ -213,6 +219,9 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub 'swift-sqs-${Environment}-message-poller'
+      DeadLetterConfig:
+        TargetArn:
+          Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dispatcher-async-dlq-arn'
       Description: Polling GET /distributions a Swift y despacha al message-dispatcher
       Runtime: python3.12
       Handler: handler.lambda_handler
@@ -287,6 +296,9 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub 'swift-sqs-${Environment}-message-sender'
+      DeadLetterConfig:
+        TargetArn:
+          Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dispatcher-async-dlq-arn'
       Description: Parsea MT/MX del core, construye X-SWIFT-Signature y envía a Swift
       Runtime: python3.12
       Handler: handler.lambda_handler
