@@ -48,21 +48,28 @@ parameters:
 
 
 variables:
+  # Variable group con las credenciales de Artifactory (lectura de paquetes)
+  - group: Artifactory
+
   # Nombre EXACTO del AWS Service Connection configurado en Azure DevOps.
-  awsServiceConnection: 'bank-2027_banistmo_desarrollo_swift-dev-aws'
+  - name: awsServiceConnection
+    value: 'bank-2027_banistmo_desarrollo_swift-dev-aws'
 
   # Region de AWS donde se despliegan los stacks.
-  awsRegion: 'us-east-1'
+  - name: awsRegion
+    value: 'us-east-1'
 
   # Prefijo de los nombres de stack, segun convencion de las plantillas:
   # swift-sqs-{env}-{stack}
-  stackPrefix: 'swift-sqs-${{ parameters.environment }}'
+  - name: stackPrefix
+    value: 'swift-sqs-${{ parameters.environment }}'
 
   # Ruta a las plantillas dentro del repo.
-  templatesPath: 'infrastructure/stacks'
+  - name: templatesPath
+    value: 'infrastructure/stacks'
 
 pool:
-  vmImage: 'ubuntu-latest'
+  name: 'Banistmo-Linux-Pool'
 
 stages:
   - stage: DeployBaseInfrastructure
@@ -227,6 +234,9 @@ stages:
           # DEBE correr antes del stack 06-lambdas, que referencia estos ZIPs.
           - task: AWSShellScript@1
             displayName: 'Empaquetar y subir Lambdas a S3'
+            env:
+              ART_USER: $(artifactory.viewer.user)
+              ART_PSW: $(artifactory.viewer.psw)
             inputs:
               awsCredentials: '$(awsServiceConnection)'
               regionName: '$(awsRegion)'
@@ -236,6 +246,11 @@ stages:
                 BUCKET="s3-0465-000-swiftint-${{ parameters.environment }}-deployment"
                 BUILD_DIR="$(Build.SourcesDirectory)/build"
                 LAMBDAS="token-refresher message-dispatcher message-poller message-sender"
+
+                # Índice PyPI en Artifactory (credenciales del group artifactory)
+                ART_BASE="$(artifactory.saas.path)"
+                ART_BASE="${ART_BASE%/}"
+                INDEX_URL="https://$(artifactory.viewer.user):$(artifactory.viewer.psw)@${ART_BASE#https://}/api/pypi/python-${{ parameters.environment }}-virtual/simple"
 
                 declare -A DIRMAP=(
                   ["token-refresher"]="token_refresher"
@@ -260,6 +275,7 @@ stages:
 
                   # 3. dependencias — solo cryptography, precompilada para Lambda
                   pip3 install \
+                    --index-url "$INDEX_URL" \
                     --platform manylinux2014_x86_64 \
                     --target "$PKG" \
                     --implementation cp \

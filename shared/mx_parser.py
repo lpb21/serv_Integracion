@@ -99,6 +99,7 @@ def _build_payload_xml(raw_mx: str, apphdr_xml: str, document_xml: str) -> str:
 
     return f"{xml_decl}\n{apphdr_xml}\n{document_xml}"
 
+
 def detect_message_format(raw: str) -> str:
     """
     Detecta si el mensaje es MT o MX.

@@ -38,8 +38,10 @@ if not consumer_key:
 if not consumer_secret:
     raise SystemExit('ERROR: SWIFT_CONSUMER_SECRET not set')
 
-# En sandbox las llaves RSA las provee Swift dinamicamente -
-# se guardan placeholders que swift_auth sobreescribe en runtime.
+# OJO: sandbox SI exige firma. Verificado 2026-09-14: sin X-SWIFT-Signature
+# el endpoint /interact/messages responde 400 SwAP09
+# "Missing mandatory signature on the non-repudiation API transaction".
+# Nada sobreescribe estos placeholders en runtime - hay que cargar llaves reales
 private_key_pem = os.environ.get('SWIFT_PRIVATE_KEY_PEM', 'SANDBOX_PLACEHOLDER')
 certificate_pem = os.environ.get('SWIFT_CERTIFICATE_PEM', 'SANDBOX_PLACEHOLDER')
 
