@@ -66,6 +66,7 @@ Resources:
     Properties:
       QueueName: !Sub 'swift-sqs-${Environment}-dlq.fifo'
       FifoQueue: true
+      SqsManagedSseEnabled: true
       MessageRetentionPeriod: 1209600   # 14 días
       Tags:
         - Key: Project
@@ -89,6 +90,7 @@ Resources:
       FifoQueue: true
       ContentBasedDeduplication: false
       VisibilityTimeout: 60
+      SqsManagedSseEnabled: true
       MessageRetentionPeriod: 86400    # 1 día
       RedrivePolicy:
         deadLetterTargetArn: !GetAtt DeadLetterQueue.Arn
@@ -113,6 +115,7 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: !Sub 'swift-sqs-${Environment}-dispatcher-async-dlq'
+      SqsManagedSseEnabled: true
       MessageRetentionPeriod: 1209600   # 14 días
       Tags:
         - Key: Project
