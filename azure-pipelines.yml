@@ -43,8 +43,8 @@ parameters:
     default: dev
     values:
       - dev
-      - qa
-      - prod
+      #- qa
+      #- prod
 
 
 variables:
@@ -143,13 +143,6 @@ stages:
               templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-sqs.json'
               onFailure: 'DELETE'
               parametersSource: 'inline'
-              parameters: |
-                [
-                  { "ParameterKey": "Environment", "ParameterValue": "${{ parameters.environment }}" },
-                  { "ParameterKey": "CoreInboundQueueName", "ParameterValue": "qa03-swift-queue.fifo" },
-                  { "ParameterKey": "CoreOutboundMtQueueName", "ParameterValue": "qa03-swift-output-queue.fifo" },
-                  { "ParameterKey": "CoreOutboundMxQueueName", "ParameterValue": "qa03-swift-output-mx-queue.fifo" }
-                ]
               tags: |
                 banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
                 banistmo:billing-mode=unico
@@ -234,9 +227,9 @@ stages:
           # DEBE correr antes del stack 06-lambdas, que referencia estos ZIPs.
           - task: AWSShellScript@1
             displayName: 'Empaquetar y subir Lambdas a S3'
-            env:
-              ART_USER: $(artifactory.viewer.user)
-              ART_PSW: $(artifactory.viewer.psw)
+            # env:
+            #   ART_USER: $(artifactory.viewer.user)
+            #   ART_PSW: $(artifactory.viewer.psw)
             inputs:
               awsCredentials: '$(awsServiceConnection)'
               regionName: '$(awsRegion)'
