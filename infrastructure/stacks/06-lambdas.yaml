@@ -72,6 +72,7 @@ Resources:
         Fn::ImportValue: !Sub 'swift-sqs-${Environment}-lambda-role-arn'
       Timeout: 30
       MemorySize: 256
+      ReservedConcurrentExecutions: 2
       Code:
         S3Bucket: !Ref DeployBucketName
         S3Key: token-refresher.zip
@@ -229,6 +230,7 @@ Resources:
         Fn::ImportValue: !Sub 'swift-sqs-${Environment}-lambda-role-arn'
       Timeout: 60
       MemorySize: 256
+      ReservedConcurrentExecutions: 1
       Code:
         S3Bucket: !Ref DeployBucketName
         S3Key: message-poller.zip
@@ -306,6 +308,7 @@ Resources:
         Fn::ImportValue: !Sub 'swift-sqs-${Environment}-lambda-role-arn'
       Timeout: 60
       MemorySize: 512
+      ReservedConcurrentExecutions: 10
       Code:
         S3Bucket: !Ref DeployBucketName
         S3Key: message-sender.zip
