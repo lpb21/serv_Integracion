@@ -105,6 +105,8 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/swift-sqs-${Environment}-token-refresher'
+      KmsKeyId:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-kms-key-arn'
       RetentionInDays: 30
       Tags:
         - Key: Project
@@ -182,6 +184,8 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/swift-sqs-${Environment}-message-dispatcher'
+      KmsKeyId:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-kms-key-arn'
       RetentionInDays: 30
       Tags:
         - Key: Project
@@ -254,6 +258,8 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/swift-sqs-${Environment}-message-poller'
+      KmsKeyId:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-kms-key-arn'
       RetentionInDays: 30
       Tags:
         - Key: Project
@@ -326,6 +332,8 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub '/aws/lambda/swift-sqs-${Environment}-message-sender'
+      KmsKeyId:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-kms-key-arn'
       RetentionInDays: 30
       Tags:
         - Key: Project
