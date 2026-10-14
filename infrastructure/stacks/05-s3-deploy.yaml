@@ -38,6 +38,11 @@ Resources:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
+    Metadata:
+      checkov:
+        skip:
+          - id: CKV_AWS_18
+            comment: "Bucket de artefactos de despliegue (zips de Lambda) sin datos de clientes. Pendiente confirmar con DevOps si se exige access logging corporativo."
     Properties:
       BucketName: !Sub 's3-0465-000-swiftint-${Environment}-deployment'
       OwnershipControls:
