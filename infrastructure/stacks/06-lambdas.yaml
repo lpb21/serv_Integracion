@@ -72,6 +72,8 @@ Resources:
       Code:
         S3Bucket: !Ref DeployBucketName
         S3Key: token-refresher.zip
+      KmsKeyArn:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-kms-key-arn'
       Environment:
         Variables:
           SWIFT_ENV:           !Ref Environment
@@ -142,6 +144,8 @@ Resources:
       Code:
         S3Bucket: !Ref DeployBucketName
         S3Key: message-dispatcher.zip
+      KmsKeyArn:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-kms-key-arn'
       Environment:
         Variables:
           SWIFT_ENV:           !Ref Environment
@@ -215,6 +219,8 @@ Resources:
       Code:
         S3Bucket: !Ref DeployBucketName
         S3Key: message-poller.zip
+      KmsKeyArn:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-kms-key-arn'
       Environment:
         Variables:
           SWIFT_ENV:           !Ref Environment
@@ -285,6 +291,8 @@ Resources:
       Code:
         S3Bucket: !Ref DeployBucketName
         S3Key: message-sender.zip
+      KmsKeyArn:
+        Fn::ImportValue: !Sub 'swift-sqs-${Environment}-kms-key-arn'
       Environment:
         Variables:
           SWIFT_ENV:           !Ref Environment
