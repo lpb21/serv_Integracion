@@ -24,6 +24,7 @@ Resources:
     Properties:
       QueueName: !Sub 'dev-swift-queue.fifo'
       FifoQueue: true
+      SqsManagedSseEnabled: true
       ContentBasedDeduplication: false
       VisibilityTimeout: 60
       MessageRetentionPeriod: 86400
@@ -46,6 +47,7 @@ Resources:
     Properties:
       QueueName: !Sub 'dev-swift-output-queue.fifo'
       FifoQueue: true
+      SqsManagedSseEnabled: true
       ContentBasedDeduplication: false
       VisibilityTimeout: 60
       MessageRetentionPeriod: 86400
@@ -68,6 +70,7 @@ Resources:
     Properties:
       QueueName: !Sub 'dev-swift-output-mx-queue.fifo'
       FifoQueue: true
+      SqsManagedSseEnabled: true
       ContentBasedDeduplication: false
       VisibilityTimeout: 60
       MessageRetentionPeriod: 86400
