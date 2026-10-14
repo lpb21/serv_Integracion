@@ -250,7 +250,7 @@ stages:
                 # Índice PyPI en Artifactory (credenciales del group artifactory)
                 ART_BASE="$(artifactory.saas.path)"
                 ART_BASE="${ART_BASE%/}"
-                INDEX_URL="https://$(artifactory.viewer.user):$(artifactory.viewer.psw)@${ART_BASE#https://}/api/pypi/python-${{ parameters.environment }}-virtual/simple"
+                INDEX_URL="https://$(artifactory.viewer.user):$(artifactory.viewer.psw)@${ART_BASE#https://}/api/pypi/pypi-${{ parameters.environment }}-virtual/simple"
 
                 declare -A DIRMAP=(
                   ["token-refresher"]="token_refresher"
