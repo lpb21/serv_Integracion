@@ -18,7 +18,7 @@ Environment variables:
   DYNAMODB_TABLE_NAME   Tabla DynamoDB del store
   KMS_KEY_ID            ID de la clave KMS
   SQS_CORE_INBOUND_URL  Cola FIFO de entrada del core (MT y MX juntos)
-  SQS_DLQ_URL           DLQ del conector
+  SQS_DLQ_URL           DLQ del conector .
 """
 
 import json
