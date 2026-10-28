@@ -165,9 +165,33 @@ def send_fin_message_batch(token: str, messages: list, credentials: dict) -> lis
     return results
 
 
+def _bic_to_dn(bic: str) -> str:
+    """BIC -> DN de SWIFTNet: o=<bic8 en minusculas>,o=swift"""
+    if not bic or len(bic) < 8:
+        raise ValueError("cannot determine DN: BIC missing or too short")
+    return f"o={bic[:8].lower()},o=swift"
+
+
+def _to_interact_body(message: dict) -> dict:
+    """
+    Adapta el mensaje parseado al esquema de /interact/messages:
+    sin sender/receiver; con service_code, requestor y responder.
+    """
+    service_code = os.environ.get("SWIFT_INTERACT_SERVICE_CODE")
+    if not service_code:
+        raise ValueError("SWIFT_INTERACT_SERVICE_CODE is required for InterAct messages")
+
+    body = {k: v for k, v in message.items() if k not in ("sender", "receiver")}
+    body["service_code"] = service_code
+    body["requestor"]    = _bic_to_dn(message.get("sender"))
+    body["responder"]    = _bic_to_dn(message.get("receiver"))
+    body.setdefault("format", "MX")
+    return body
+
+
 def send_interact_message(token: str, message: dict, credentials: dict) -> dict:
     """POST /interact/messages — InterAct individual."""
-    return _swift_post(token, "/interact/messages", message, credentials)
+    return _swift_post(token, "/interact/messages", _to_interact_body(message), credentials)
 
 
 def send_interact_message_batch(token: str, messages: list, credentials: dict) -> list:
@@ -175,7 +199,8 @@ def send_interact_message_batch(token: str, messages: list, credentials: dict) -
     results = []
     for i in range(0, len(messages), INTERACT_BATCH_MAX):
         chunk = messages[i:i + INTERACT_BATCH_MAX]
-        data  = _swift_post(token, "/interact/messages/batch", {"messages": chunk}, credentials)
+        data  = _swift_post(token, "/interact/messages/batch",
+                            {"messages": [_to_interact_body(m) for m in chunk]}, credentials)
         results.extend(data.get("results", []))
     return results
 
