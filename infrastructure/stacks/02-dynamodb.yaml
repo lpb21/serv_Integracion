@@ -1,11 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >
-  Swift SQS Connector — DynamoDB (2/7)
+  Swift SQS Connector — DynamoDB (2/8)
   Tabla on-demand cifrada con KMS para almacenar
   credenciales Swift y Bearer token.
 
   Stack name recomendado: swift-sqs-{env}-dynamodb
-  Deploy order: 2 de 7 — depende de: 01-kms
+  Deploy order: 2 de 8 — depende de: 01-kms
 
   Estructura de la tabla:
     pk="credentials" → consumer_key (claro) + campos cifrados con KMS
