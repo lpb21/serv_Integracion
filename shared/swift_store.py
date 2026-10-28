@@ -50,7 +50,7 @@ _token_cached_at:   float          = 0.0
 _creds_cache:       Optional[dict] = None
 _creds_cached_at:   float          = 0.0
 
-TOKEN_TTL  = 45 * 60   # 45 min
+TOKEN_TTL  = 5 * 60   # 5 min: menor que el intervalo de refresco (25 min)
 CREDS_TTL  = 60 * 60   # 60 min
 
 _serializer   = TypeSerializer()

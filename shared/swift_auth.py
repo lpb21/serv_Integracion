@@ -155,7 +155,8 @@ def resolve_keys(creds: dict) -> tuple[str, str]:
         server = "https://sandbox.swift.com"
 
         pk_response = urllib.request.urlopen(
-            f"{server}/sandbox-selfsigned-dummy-secret/privatekey2"
+            f"{server}/sandbox-selfsigned-dummy-secret/privatekey2",
+            timeout=20,
         )
         pk_raw = pk_response.read().decode().strip()
         private_key_pem = (
@@ -163,7 +164,8 @@ def resolve_keys(creds: dict) -> tuple[str, str]:
         )
 
         cert_response = urllib.request.urlopen(
-            f"{server}/sandbox-selfsigned-dummy-secret/certificate2"
+            f"{server}/sandbox-selfsigned-dummy-secret/certificate2",
+            timeout=20,
         )
         cert_raw = cert_response.read().decode().strip()
         certificate_pem = (
@@ -215,7 +217,7 @@ def fetch_swift_token(creds: dict) -> dict:
     )
 
     try:
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=20) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         body_err = e.read().decode()

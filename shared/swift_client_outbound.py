@@ -87,12 +87,12 @@ def _swift_post(
     if credentials and not has_real_creds:
         logger.warning("Credenciales PKI no utilizables (env=%s) — enviando sin X-SWIFT-Signature", SWIFT_ENV)
 
-    signature = (
-        build_swift_signature(url, body_string, credentials)
-        if has_real_creds else ""
-    )
-
     for attempt in range(max_retries + 1):
+        # Firma nueva por intento: exp dura 15 s y el jti no debe repetirse
+        signature = (
+            build_swift_signature(url, body_string, credentials)
+            if has_real_creds else ""
+        )
         req = urllib.request.Request(
             url,
             data=body_bytes,
@@ -106,7 +106,7 @@ def _swift_post(
         )
 
         try:
-            with urllib.request.urlopen(req) as resp:
+            with urllib.request.urlopen(req, timeout=20) as resp:
                 return json.loads(resp.read())
 
         # después
