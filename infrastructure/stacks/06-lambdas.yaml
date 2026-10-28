@@ -33,6 +33,11 @@ Parameters:
     Default: ''
     Description: URL de callback para transferencias FileAct asíncronas (opcional)
 
+  InterActServiceCode:
+    Type: String
+    Default: 'swift.cbprplus.02'
+    Description: service_code de Swift para mensajes InterAct (MX) del message-sender
+
   CoreFileActQueueName:
     Type: String
     Default: ''
@@ -321,6 +326,7 @@ Resources:
             Fn::ImportValue: !Sub 'swift-sqs-${Environment}-dynamo-table-name'
           KMS_KEY_ID:
             Fn::ImportValue: !Sub 'swift-sqs-${Environment}-kms-key-id'
+          SWIFT_INTERACT_SERVICE_CODE: !Ref InterActServiceCode
           SQS_SEND_RESULTS_URL:
             Fn::ImportValue: !Sub 'swift-sqs-${Environment}-send-results-url'
       Tags:
