@@ -22,6 +22,7 @@ import logging
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.x509 import load_pem_x509_certificate
+from shared.swift_env import SWIFT_ENV
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,9 @@ def _get_subject_dn(certificate_pem: str) -> str:
         ]
         return ", ".join(attrs)
     except Exception:
-        return "CN=demo-swift-sandbox-consumer, O=Demo, L=London, S=London, C=GB"
+        if SWIFT_ENV == "sandbox":
+            return "CN=demo-swift-sandbox-consumer, O=Demo, L=London, S=London, C=GB"
+        raise
 
 
 def _calculate_digest(body_string: str) -> str:
