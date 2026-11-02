@@ -51,9 +51,13 @@ variables:
   # Variable group con las credenciales de Artifactory (lectura de paquetes)
   - group: Artifactory
 
-  # Nombre EXACTO del AWS Service Connection configurado en Azure DevOps.
-  - name: awsServiceConnection
-    value: 'bank-2027_banistmo_desarrollo_swift-dev-aws'
+  # Nombre EXACTO del AWS Service Connection de cada ambiente (una por cuenta AWS).
+  - ${{ if eq(parameters.environment, 'dev') }}:
+    - name: awsServiceConnection
+      value: 'bank-2027_banistmo_desarrollo_swift-dev-aws'
+  - ${{ if eq(parameters.environment, 'qa') }}:
+    - name: awsServiceConnection
+      value: 'REEMPLAZAR-service-connection-qa'
 
   # Region de AWS donde se despliegan los stacks.
   - name: awsRegion
