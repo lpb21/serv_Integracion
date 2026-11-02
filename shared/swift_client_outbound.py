@@ -166,10 +166,11 @@ def send_fin_message_batch(token: str, messages: list, credentials: dict) -> lis
 
 
 def _bic_to_dn(bic: str) -> str:
-    """BIC -> DN de SWIFTNet: o=<bic8 en minusculas>,o=swift"""
+    """BIC -> DN de SWIFTNet: ou=<unidad>,o=<bic8 en minusculas>,o=swift"""
     if not bic or len(bic) < 8:
         raise ValueError("cannot determine DN: BIC missing or too short")
-    return f"o={bic[:8].lower()},o=swift"
+    ou = os.environ.get("SWIFT_DN_OU", "xxx")
+    return f"ou={ou},o={bic[:8].lower()},o=swift"
 
 
 def _to_interact_body(message: dict) -> dict:
