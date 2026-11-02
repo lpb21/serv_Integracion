@@ -122,73 +122,148 @@ están en `infrastructure/README.md`.
 ---
 
 ## Casos de uso y cómo probarlos
-
-El conector tiene dos sentidos. Las pruebas de abajo se hacen en **dev** (Swift sandbox) desde AWS CloudShell o con la CLI de AWS.
-
+ 
+El conector funciona en dos sentidos: **entrada** (Swift hacia el core) y **salida** (core hacia Swift). Esta sección explica cada caso de uso y cómo probarlo en **dev**, que usa Swift sandbox. Los comandos se ejecutan desde AWS CloudShell o desde una terminal con la CLI de AWS y credenciales de la cuenta de dev.
+ 
+Estado: los cinco casos de uso están validados en dev contra Swift sandbox. En test y producción hay que repetir las pruebas con las credenciales y llaves reales de cada ambiente.
+ 
+### Casos de uso
+ 
 | # | Caso de uso | Qué debe pasar |
 | --- | --- | --- |
-| 1 | Token | Cada 25 min el token-refresher obtiene el Bearer token (`expires_in=1799` segundos, unos 30 min) y lo guarda cifrado en DynamoDB |
-| 2 | Entrada | El poller consulta a Swift cada 2 min, el dispatcher descarga cada mensaje, lo publica en la cola FIFO de entrada del core y envía el ACK |
-| 3 | Salida MT | Un MT en la cola de salida MT se parsea, se firma y Swift lo acepta (`fin.103`) |
-| 4 | Salida MX | Un MX en la cola de salida MX se parsea, se firma y Swift lo acepta (por ejemplo `pacs.008.001.08`) |
-| 5 | Resultado al core | Cada envío deja un mensaje `Accepted` o `Failed` en la cola `send-results` |
-
-### Credenciales (una vez por ambiente)
-
-Las credenciales viven en la tabla DynamoDB `swift-sqs-<env>-store`, con el secreto cifrado con KMS. Se cargan con `scripts/setup_credentials.py`. En sandbox, la llave y el certificado de firma son el par público de prueba de Swift.
-
+| 1 | Token | Cada 25 minutos el token-refresher obtiene el Bearer token de Swift y lo guarda cifrado en DynamoDB. `expires_in=1799` son segundos, unos 30 minutos |
+| 2 | Entrada | Cada 2 minutos el poller consulta a Swift, el dispatcher descarga cada mensaje, lo publica en la cola FIFO de entrada del core y envía el ACK a Swift |
+| 3 | Salida MT | Un mensaje MT en la cola de salida MT se parsea, se firma y Swift lo acepta (por ejemplo `fin.103`) |
+| 4 | Salida MX | Un mensaje MX en la cola de salida MX se parsea, se firma y Swift lo acepta (por ejemplo `pacs.008.001.08`) |
+| 5 | Resultado al core | Cada envío deja un mensaje `Accepted` o `Failed` en la cola `send-results`, para que el core lo correlacione |
+ 
+### Antes de probar: credenciales
+ 
+Las credenciales de Swift viven en la tabla DynamoDB `swift-sqs-<env>-store`. El `consumer_key` va en claro y el `consumer_secret`, la llave privada y el certificado van cifrados con KMS. Se cargan una vez por ambiente con `scripts/setup_credentials.py`.
+ 
+En sandbox, la llave y el certificado de firma son el par público de prueba que publica Swift. En test y producción son las llaves institucionales que entrega Seguridad. Si la llave guardada es el valor `SANDBOX_PLACEHOLDER`, el sender envía sin firma y Swift responde `400 SwAP09`.
+ 
+Para confirmar que las credenciales existen y cuándo se cargaron, sin leer ningún secreto:
+ 
+```bash
+aws dynamodb get-item --table-name swift-sqs-dev-store \
+  --key '{"pk":{"S":"credentials"}}' \
+  --projection-expression "pk, consumer_key, updated_at" --region us-east-1
+```
+ 
+### Probar el token
+ 
+```bash
+aws lambda invoke --function-name swift-sqs-dev-token-refresher --region us-east-1 /tmp/out.json
+```
+ 
+En el log de `/aws/lambda/swift-sqs-dev-token-refresher` debe aparecer `token obtained, expires_in=1799` y luego `token saved to DynamoDB`.
+ 
 ### Probar la entrada
-
+ 
 1. Invocar el poller a mano:
-   ```bash
+```bash
    aws lambda invoke --function-name swift-sqs-dev-message-poller --region us-east-1 /tmp/out.json && cat /tmp/out.json
-   ```
-   Debe responder `{"statusCode": 200, "dispatched": N, "failed": 0}`.
-2. Revisar el log de `/aws/lambda/swift-sqs-dev-message-dispatcher`. Por cada distribución debe aparecer `published to SQS` y luego `ACK sent`.
-3. Ver los mensajes en la cola de entrada, sin consumirlos:
-   ```bash
+```
+ 
+   Debe responder `{"statusCode": 200, "dispatched": N, "failed": 0}`. Si no hay distribuciones pendientes, responde `No distributions available`.
+ 
+2. Revisar el log de `/aws/lambda/swift-sqs-dev-message-dispatcher`. Por cada distribución debe aparecer, en este orden:
+   - `message-dispatcher: processing id=... service=... type=...`
+   - `message-dispatcher: published to SQS id=... messageId=...`
+   - `ACK sent for distribution ...`
+3. Ver los mensajes en la cola de entrada del core, sin consumirlos:
+```bash
    Q=$(aws sqs get-queue-url --queue-name dev-swift-queue.fifo --query QueueUrl --output text --region us-east-1)
    aws sqs get-queue-attributes --queue-url $Q --attribute-names ApproximateNumberOfMessages --region us-east-1
    aws sqs receive-message --queue-url $Q --visibility-timeout 0 --max-number-of-messages 1 --region us-east-1
-   ```
-
-El sandbox de Swift devuelve siempre las mismas 3 distribuciones aunque se envíe el ACK. Es el comportamiento esperado del simulador. La cola FIFO deduplica por `distribution.id` en una ventana de 5 minutos.
-
+```
+ 
+   Con `--visibility-timeout 0` el mensaje vuelve a quedar visible de inmediato, así la prueba no lo consume.
+ 
+Notas sobre el sandbox:
+- Swift sandbox es un simulador y devuelve siempre las mismas 3 distribuciones, aunque se envíe el ACK. Es el comportamiento esperado.
+- La cola FIFO de entrada deduplica por `distribution.id` en una ventana de 5 minutos, así que las repeticiones del sandbox no se acumulan dentro de esa ventana.
 ### Probar la salida
-
-1. Enviar un mensaje de prueba (datos ficticios, referencia nueva en cada envío):
-   ```bash
-   python scripts/send_test_message.py mt
-   python scripts/send_test_message.py mx
-   python scripts/send_test_message.py mx --file mi_mensaje.xml
-   ```
-2. Revisar el log de `/aws/lambda/swift-sqs-dev-message-sender`:
-   - `message-sender: parsed` indica el formato, el servicio y el tipo de mensaje.
-   - `message-sender: sent` con un `message_cloud_reference` indica que Swift lo aceptó.
-   - `message-sender: error` incluye el código de Swift (`swiftCode`) y el texto. Los 4xx no se reintentan.
-3. Ver el resultado en la cola `swift-sqs-dev-send-results.fifo` (Enviar y recibir mensajes → Sondear). Debe haber un `Accepted`, o un `Failed` con `error_code` y `error_text`.
-
-El sender acepta el MX con `AppHdr` y `Document`, o dentro de un `DataPDU`. Para InterAct arma el cuerpo con `service_code`, `requestor` y `responder`:
-- `service_code`: variable `SWIFT_INTERACT_SERVICE_CODE` (parámetro `InterActServiceCode` del stack 06).
-- `requestor` y `responder`: DN `ou=<SWIFT_DN_OU>,o=<bic8>,o=swift`, derivados de los BIC del `AppHdr`.
-- `network_info.request_type` y `request_subtype`: salen de `MsgDefIdr` y `BizSvc` del `AppHdr`.
-
+ 
+La salida se prueba con `scripts/send_test_message.py`.
+ 
+**Qué hace.** Publica un mensaje de prueba en la cola de salida del core, lo que dispara al `message-sender`. Evita armar el mensaje a mano. Sirve para MT y para MX.
+ 
+- Elige la cola según el formato: `dev-swift-output-queue.fifo` para MT y `dev-swift-output-mx-queue.fifo` para MX.
+- Genera una referencia nueva en cada envío (`TEST-<timestamp>` o `MXTEST-<timestamp>`) y un UETR nuevo. Swift rechaza referencias repetidas.
+- Usa datos ficticios: ordenante y beneficiario de prueba, cuentas `0000000001` y `0000000002`.
+- Con `--file` envía el mensaje de un archivo propio, en lugar del ejemplo.
+- No lee ni usa credenciales de Swift; solo usa los permisos AWS de la sesión.
+**Requisitos.** Python 3 con `boto3` (CloudShell ya lo trae) y permisos `sqs:GetQueueUrl` y `sqs:SendMessage` sobre la cola. Las Lambdas deben estar desplegadas con el código actual.
+ 
+**Cómo ejecutarlo.**
+ 
+```bash
+python3 scripts/send_test_message.py mt
+python3 scripts/send_test_message.py mx
+python3 scripts/send_test_message.py mx --file mi_mensaje.xml
+```
+ 
+Opciones, todas opcionales:
+ 
+| Opción | Uso |
+| --- | --- |
+| `--env dev` | Prefijo de las colas dummy. Por defecto `dev` |
+| `--queue-name NOMBRE` | Otra cola, por ejemplo la real del core en qa |
+| `--region us-east-1` | Región de AWS. Por defecto `us-east-1` |
+| `--file RUTA` | Archivo con el mensaje a enviar, en lugar del ejemplo |
+ 
+**Salida esperada en la terminal.**
+ 
+```
+Enviado a dev-swift-output-queue.fifo
+Referencia: TEST-1793600000
+MessageId:  <un UUID>
+Revisa el log de swift-sqs-<env>-message-sender y la cola send-results.
+```
+ 
+La referencia lleva el timestamp del envío, así que cambia cada vez. Para MX la cola es `dev-swift-output-mx-queue.fifo` y la referencia empieza con `MXTEST-`.
+ 
+**Qué verificar en AWS.**
+ 
+1. Log de `/aws/lambda/swift-sqs-dev-message-sender`, unos 10 segundos después del envío:
+   - `message-sender: parsed` muestra el formato (MT o MX), el servicio, el tipo de mensaje y la referencia.
+   - `message-sender: sent` con un `message_cloud_reference` indica que Swift aceptó el mensaje.
+   - `message-sender: error` incluye `swiftCode`, `statusCode` y el texto de Swift. Los errores 4xx no se reintentan.
+2. Cola `swift-sqs-dev-send-results.fifo` (en la consola: Enviar y recibir mensajes, Sondear mensajes). Debe haber un mensaje con `"status": "Accepted"` y la misma `sender_reference` del envío. Si Swift rechazó el mensaje, el estado es `Failed` y trae `error_code` y `error_text`.
+### Cómo arma el sender el mensaje a Swift
+ 
+El sender detecta el formato por el contenido del cuerpo: un MT empieza con `{1:`, un MX con `<?xml` o con un namespace ISO 20022. Un MX puede venir con `AppHdr` y `Document`, o dentro de un `DataPDU`; en ambos casos el parser toma el `AppHdr` y el `Document`.
+ 
+- **MT (FIN, `/fin/messages`):** el cuerpo lleva `sender_reference` (campo 108 del bloque 3), `message_type`, `sender`, `receiver`, `payload` y `network_info`.
+- **MX (InterAct, `/interact/messages`):** el cuerpo no lleva `sender` ni `receiver`, y sí:
+  - `service_code`: variable de entorno `SWIFT_INTERACT_SERVICE_CODE`, que viene del parámetro `InterActServiceCode` del stack 06.
+  - `requestor` y `responder`: DN con la forma `ou=<SWIFT_DN_OU>,o=<bic8 en minúsculas>,o=swift`, derivados de los BIC del `AppHdr`. La unidad por defecto es `xxx`.
+  - `network_info.request_type` y `network_info.request_subtype`: salen de `MsgDefIdr` y `BizSvc` del `AppHdr`.
+  - `format: "MX"`.
+Ambos envíos llevan el header `X-SWIFT-Signature`, un JWS RS256 que se genera en cada intento con la llave privada y el certificado guardados en DynamoDB.
+ 
 ### Errores habituales
-
+ 
 | Síntoma | Causa probable |
 | --- | --- |
 | `400 SwAP09` | El mensaje salió sin firma: la llave o el certificado en DynamoDB son el placeholder |
-| `400 SwAP504` | El cuerpo no cumple el esquema de Swift: revisar los campos que menciona el error |
+| `400 SwAP504` | El cuerpo no cumple el esquema de Swift: revisar los campos que nombra el error |
 | `401` | Token vencido o credenciales distintas a las de la app del Developer Portal |
 | `Credentials not found in DynamoDB` | Falta correr `scripts/setup_credentials.py` en ese ambiente |
-
+| `SWIFT_INTERACT_SERVICE_CODE is required` | El stack 06 se desplegó sin la variable del sender |
+| `Failed` con `error_code: PARSE_ERROR` | El mensaje no se pudo parsear: revisar el formato del cuerpo (por ejemplo, falta el bloque 2 o 4 de un MT, o el `BizMsgIdr` de un MX) |
+ 
 ### Pruebas locales
-
+ 
 ```bash
 python tests/unit/test_parsers.py
 ```
-Los scripts `scripts/run_dispatcher_local.py` y `scripts/run_sender_local.py` ejecutan los handlers en local contra LocalStack.
  
+Los scripts `scripts/run_dispatcher_local.py` y `scripts/run_sender_local.py` ejecutan los handlers en local contra LocalStack.
+
+
 ## Referencias
  
 - Swift Messaging API — https://developer.swift.com/apis/swift-messaging-api
