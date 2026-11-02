@@ -179,6 +179,7 @@ def parse_mx_message(raw_mx: str) -> dict:
             **({"request_subtype": biz_svc} if biz_svc else {}),
         },
         "_meta": {
+            "uetr":             _extract_tag(document_xml, "UETR"),
             "biz_msg_idr":      biz_msg_idr,
             "msg_def_idr":      msg_def_idr,
             "cre_dt":           cre_dt,
