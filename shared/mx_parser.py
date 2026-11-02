@@ -149,6 +149,7 @@ def parse_mx_message(raw_mx: str) -> dict:
     biz_msg_idr = _extract_tag(apphdr_xml, "BizMsgIdr")
     msg_def_idr = _extract_tag(apphdr_xml, "MsgDefIdr")
     cre_dt      = _extract_tag(apphdr_xml, "CreDt")
+    biz_svc     = _extract_tag(apphdr_xml, "BizSvc")
 
     if not msg_def_idr:
         raise ValueError("AppHdr/MsgDefIdr not found — cannot determine message type")
@@ -173,6 +174,10 @@ def parse_mx_message(raw_mx: str) -> dict:
         "sender":           sender_bic,
         "receiver":         receiver_bic,
         "payload":          payload_b64,
+        "network_info": {
+            "request_type": msg_def_idr,
+            **({"request_subtype": biz_svc} if biz_svc else {}),
+        },
         "_meta": {
             "biz_msg_idr":      biz_msg_idr,
             "msg_def_idr":      msg_def_idr,
