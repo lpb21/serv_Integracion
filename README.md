@@ -120,6 +120,74 @@ detalle completo del despliegue, las dependencias entre stacks y el estado actua
 están en `infrastructure/README.md`.
  
 ---
+
+## Casos de uso y cómo probarlos
+
+El conector tiene dos sentidos. Las pruebas de abajo se hacen en **dev** (Swift sandbox) desde AWS CloudShell o con la CLI de AWS.
+
+| # | Caso de uso | Qué debe pasar |
+| --- | --- | --- |
+| 1 | Token | Cada 25 min el token-refresher obtiene el Bearer token (`expires_in=1799` segundos, unos 30 min) y lo guarda cifrado en DynamoDB |
+| 2 | Entrada | El poller consulta a Swift cada 2 min, el dispatcher descarga cada mensaje, lo publica en la cola FIFO de entrada del core y envía el ACK |
+| 3 | Salida MT | Un MT en la cola de salida MT se parsea, se firma y Swift lo acepta (`fin.103`) |
+| 4 | Salida MX | Un MX en la cola de salida MX se parsea, se firma y Swift lo acepta (por ejemplo `pacs.008.001.08`) |
+| 5 | Resultado al core | Cada envío deja un mensaje `Accepted` o `Failed` en la cola `send-results` |
+
+### Credenciales (una vez por ambiente)
+
+Las credenciales viven en la tabla DynamoDB `swift-sqs-<env>-store`, con el secreto cifrado con KMS. Se cargan con `scripts/setup_credentials.py`. En sandbox, la llave y el certificado de firma son el par público de prueba de Swift.
+
+### Probar la entrada
+
+1. Invocar el poller a mano:
+   ```bash
+   aws lambda invoke --function-name swift-sqs-dev-message-poller --region us-east-1 /tmp/out.json && cat /tmp/out.json
+   ```
+   Debe responder `{"statusCode": 200, "dispatched": N, "failed": 0}`.
+2. Revisar el log de `/aws/lambda/swift-sqs-dev-message-dispatcher`. Por cada distribución debe aparecer `published to SQS` y luego `ACK sent`.
+3. Ver los mensajes en la cola de entrada, sin consumirlos:
+   ```bash
+   Q=$(aws sqs get-queue-url --queue-name dev-swift-queue.fifo --query QueueUrl --output text --region us-east-1)
+   aws sqs get-queue-attributes --queue-url $Q --attribute-names ApproximateNumberOfMessages --region us-east-1
+   aws sqs receive-message --queue-url $Q --visibility-timeout 0 --max-number-of-messages 1 --region us-east-1
+   ```
+
+El sandbox de Swift devuelve siempre las mismas 3 distribuciones aunque se envíe el ACK. Es el comportamiento esperado del simulador. La cola FIFO deduplica por `distribution.id` en una ventana de 5 minutos.
+
+### Probar la salida
+
+1. Enviar un mensaje de prueba (datos ficticios, referencia nueva en cada envío):
+   ```bash
+   python scripts/send_test_message.py mt
+   python scripts/send_test_message.py mx
+   python scripts/send_test_message.py mx --file mi_mensaje.xml
+   ```
+2. Revisar el log de `/aws/lambda/swift-sqs-dev-message-sender`:
+   - `message-sender: parsed` indica el formato, el servicio y el tipo de mensaje.
+   - `message-sender: sent` con un `message_cloud_reference` indica que Swift lo aceptó.
+   - `message-sender: error` incluye el código de Swift (`swiftCode`) y el texto. Los 4xx no se reintentan.
+3. Ver el resultado en la cola `swift-sqs-dev-send-results.fifo` (Enviar y recibir mensajes → Sondear). Debe haber un `Accepted`, o un `Failed` con `error_code` y `error_text`.
+
+El sender acepta el MX con `AppHdr` y `Document`, o dentro de un `DataPDU`. Para InterAct arma el cuerpo con `service_code`, `requestor` y `responder`:
+- `service_code`: variable `SWIFT_INTERACT_SERVICE_CODE` (parámetro `InterActServiceCode` del stack 06).
+- `requestor` y `responder`: DN `ou=<SWIFT_DN_OU>,o=<bic8>,o=swift`, derivados de los BIC del `AppHdr`.
+- `network_info.request_type` y `request_subtype`: salen de `MsgDefIdr` y `BizSvc` del `AppHdr`.
+
+### Errores habituales
+
+| Síntoma | Causa probable |
+| --- | --- |
+| `400 SwAP09` | El mensaje salió sin firma: la llave o el certificado en DynamoDB son el placeholder |
+| `400 SwAP504` | El cuerpo no cumple el esquema de Swift: revisar los campos que menciona el error |
+| `401` | Token vencido o credenciales distintas a las de la app del Developer Portal |
+| `Credentials not found in DynamoDB` | Falta correr `scripts/setup_credentials.py` en ese ambiente |
+
+### Pruebas locales
+
+```bash
+python tests/unit/test_parsers.py
+```
+Los scripts `scripts/run_dispatcher_local.py` y `scripts/run_sender_local.py` ejecutan los handlers en local contra LocalStack.
  
 ## Referencias
  
