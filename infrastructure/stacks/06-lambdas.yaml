@@ -35,7 +35,7 @@ Parameters:
 
   InterActServiceCode:
     Type: String
-    Default: 'swift.cbprplus.02'
+    Default: 'swift.finplus!pf'
     Description: service_code de Swift para mensajes InterAct (MX) del message-sender
 
   CoreFileActQueueName:
