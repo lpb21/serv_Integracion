@@ -1,381 +1,107 @@
 # ============================================================================
-# Pipeline de despliegue — Swift SQS Connector (infraestructura)
+# CI — Swift SQS Connector
 # ============================================================================
-# Despliega los stacks de CloudFormation en AWS, EN ORDEN (01 -> 08).
-# El orden es obligatorio: cada stack importa Exports del anterior
-# (Fn::ImportValue), asi que no pueden desplegarse en paralelo ni desordenados.
+# Construye, prueba y publica el artefacto. NO despliega: el despliegue por
+# ambiente (INT / QA / PROD) lo hace el release pipeline, que descarga este
+# artefacto y despliega los stacks 01 -> 08 en orden.
 #
-# Orden de stacks:
-#   01 - KMS          clave de cifrado
-#   02 - DynamoDB     tabla de credenciales/token (cifrada con KMS)
-#   03 - SQS          colas propias del conector (DLQ, send-results, async-dlq)
-#   04 - IAM          rol de ejecucion de las Lambdas
-#   05 - S3 Deploy    bucket de artefactos para los ZIPs
-#   >> Empaquetado    genera y sube los ZIPs de las 4 Lambdas al bucket
-#   06 - Lambdas      las 4 funciones + log groups
-#   07 - EventBridge  schedules (token-refresher, message-poller)
-#   08 - Triggers     event source mappings (colas outbound -> sender) + async config
+# Contenido del artefacto "drop":
+#   lambdas/<nombre>.zip         -> los 4 ZIPs de las Lambdas
+#   infrastructure/stacks/       -> plantillas CloudFormation
+#   infrastructure/parameters/   -> JSON de parámetros por ambiente
 #
-# REQUISITOS antes de ejecutar:
-#   1. Extension "AWS Toolkit for Azure DevOps" instalada en la organizacion
-#      (provee CloudFormationCreateOrUpdateStack y AWSShellScript).
-#   2. "AWS Service Connection" configurado con permisos de CloudFormation
-#      sobre la cuenta destino (variable awsServiceConnection).
-#   3. Region de despliegue (variable awsRegion).
-#
-# NOTA - colas dummy del core (solo dev):
-#   El stack 08 depende de las colas outbound del core. En dev estas se
-#   simulan con colas dummy (00-dev-dummy-core-queues.yaml) que se despliegan
-#   MANUALMENTE, fuera de este pipeline (en prod se apunta a las colas reales
-#   de Cobis). Deben existir antes de correr el 08.
+# El disparo es MANUAL (trigger/pr en none).
 # ============================================================================
 
-# El disparo esta MANUAL. No se ejecuta solo con push/merge, para evitar despliegues
-# accidentales. Se dispara a proposito desde la interfaz de Azure DevOps.
 trigger: none
 pr: none
-
-# Parametros que se eligen al ejecutar el pipeline manualmente.
-parameters:
-  - name: environment
-    displayName: Ambiente de despliegue
-    type: string
-    default: dev
-    values:
-      - dev
-      #- qa
-      #- prod
-
 
 variables:
   # Variable group con las credenciales de Artifactory (lectura de paquetes)
   - group: Artifactory
 
-  # Nombre EXACTO del AWS Service Connection de cada ambiente (una por cuenta AWS).
-  - ${{ if eq(parameters.environment, 'dev') }}:
-    - name: awsServiceConnection
-      value: 'bank-2027_banistmo_desarrollo_swift-dev-aws'
-  - ${{ if eq(parameters.environment, 'qa') }}:
-    - name: awsServiceConnection
-      value: 'REEMPLAZAR-service-connection-qa'
-
-  # Region de AWS donde se despliegan los stacks.
-  - name: awsRegion
-    value: 'us-east-1'
-
-  # Prefijo de los nombres de stack, segun convencion de las plantillas:
-  # swift-sqs-{env}-{stack}
-  - name: stackPrefix
-    value: 'swift-sqs-${{ parameters.environment }}'
-
-  # Ruta a las plantillas dentro del repo.
-  - name: templatesPath
-    value: 'infrastructure/stacks'
-
 pool:
   name: 'Banistmo-Linux-Pool'
 
 stages:
-  - stage: DeployBaseInfrastructure
-    displayName: 'Infraestructura base (01-04)'
+  - stage: CI
+    displayName: 'Build, pruebas y artefacto'
     jobs:
-      - job: DeployStacks
-        displayName: 'Desplegar stacks base en orden'
+      - job: Build
+        displayName: 'Construir y publicar'
         steps:
 
-          # -- 01 - KMS ------------------------------------------------------
-          - task: CloudFormationCreateOrUpdateStack@1
-            displayName: '01 - KMS'
+          # ── Índice PyPI de Artifactory ─────────────────────────────────
+          # Se arma una sola vez y se guarda como variable secreta para que
+          # las credenciales no aparezcan en los logs.
+          - script: |
+              ART_BASE="$(artifactory.saas.path)"
+              ART_BASE="${ART_BASE%/}"
+              echo "##vso[task.setvariable variable=INDEX_URL;issecret=true]https://$(artifactory.viewer.user):$(artifactory.viewer.psw)@${ART_BASE#https://}/api/pypi/pypi-dev-virtual/simple"
+            displayName: 'Configurar índice PyPI de Artifactory'
+
+          # ── Pruebas unitarias ──────────────────────────────────────────
+          - script: |
+              set -e
+              pip3 install --index-url "$(INDEX_URL)" -r requirements.txt pytest --quiet
+              python3 -m pytest tests/unit -v
+            displayName: 'Pruebas unitarias'
+
+          # ── Empaquetado de Lambdas ─────────────────────────────────────
+          # Un ZIP por Lambda: handler.py en la raíz + shared/ + cryptography
+          # precompilada para Lambda x86_64 / py3.12. boto3 no se incluye:
+          # ya viene en el runtime de Lambda.
+          - script: |
+              set -e
+              OUT="$(Build.ArtifactStagingDirectory)/lambdas"
+              BUILD_DIR="$(Build.SourcesDirectory)/build"
+              mkdir -p "$OUT"
+              rm -rf "$BUILD_DIR"
+              mkdir -p "$BUILD_DIR"
+
+              declare -A DIRMAP=(
+                ["token-refresher"]="token_refresher"
+                ["message-dispatcher"]="message_dispatcher"
+                ["message-poller"]="message_poller"
+                ["message-sender"]="message_sender"
+              )
+
+              for LAMBDA in "${!DIRMAP[@]}"; do
+                PKG="$BUILD_DIR/$LAMBDA"
+                mkdir -p "$PKG"
+
+                cp "$(Build.SourcesDirectory)/lambdas/${DIRMAP[$LAMBDA]}/handler.py" "$PKG/"
+                cp -r "$(Build.SourcesDirectory)/shared" "$PKG/shared"
+
+                pip3 install \
+                  --index-url "$(INDEX_URL)" \
+                  --platform manylinux2014_x86_64 \
+                  --target "$PKG" \
+                  --implementation cp \
+                  --python-version 3.12 \
+                  --only-binary=:all: \
+                  cryptography==42.0.0 --quiet
+
+                (cd "$PKG" && zip -r "$OUT/$LAMBDA.zip" . -x "*.pyc" -x "*__pycache__*" > /dev/null)
+                echo "Empaquetado: $LAMBDA.zip"
+              done
+
+              ls -la "$OUT"
+            displayName: 'Empaquetar Lambdas'
+
+          # ── Infraestructura al artefacto ───────────────────────────────
+          - task: CopyFiles@2
+            displayName: 'Copiar plantillas y parámetros al artefacto'
             inputs:
-              awsCredentials: '$(awsServiceConnection)'
-              regionName: '$(awsRegion)'
-              stackName: '$(stackPrefix)-kms'
-              templateSource: 'file'
-              templateFile: '$(templatesPath)/01-kms.yaml'
-              onFailure: 'DELETE'
-              templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-kms.json'
-              tags: |
-                banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
-                banistmo:billing-mode=unico
-                banistmo:repository=bipcld0465000-cnf-swift-int-alliance-cloud
-                banistmo:tec:environment-type=${{ parameters.environment }}
-                banistmo:application-office=14302
-                banistmo:cumplimiento=sox-bia
-                banistmo:clasificacion-disponibilidad=impacto-critico
-                banistmo:clasificacion-integridad=impacto-critico
-                banistmo:clasificacion-confidencialidad=confidencial
-                banistmo:dominio-informacion=productos-activos-financiera-riesgos-seguridad
-                banistmo:datos-personales=clientes-proveedores-empleados-accionistas
-                Project=swift-sqs-connector
-                DeployedBy=azure-pipelines
+              SourceFolder: 'infrastructure'
+              Contents: |
+                stacks/**
+                parameters/*.json
+              TargetFolder: '$(Build.ArtifactStagingDirectory)/infrastructure'
 
-          # -- 02 - DynamoDB (depende de 01) ---------------------------------
-          - task: CloudFormationCreateOrUpdateStack@1
-            displayName: '02 - DynamoDB'
+          # ── Publicar ───────────────────────────────────────────────────
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publicar artefacto drop'
             inputs:
-              awsCredentials: '$(awsServiceConnection)'
-              regionName: '$(awsRegion)'
-              stackName: '$(stackPrefix)-dynamodb'
-              templateSource: 'file'
-              templateFile: '$(templatesPath)/02-dynamodb.yaml'
-              templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-dynamodb.json'
-              onFailure: 'DELETE'
-              tags: |
-                banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
-                banistmo:billing-mode=unico
-                banistmo:repository=bipcld0465000-cnf-swift-int-alliance-cloud
-                banistmo:tec:environment-type=${{ parameters.environment }}
-                banistmo:application-office=14302
-                banistmo:cumplimiento=sox-bia
-                banistmo:clasificacion-disponibilidad=impacto-critico
-                banistmo:clasificacion-integridad=impacto-critico
-                banistmo:clasificacion-confidencialidad=confidencial
-                banistmo:dominio-informacion=productos-activos-financiera-riesgos-seguridad
-                banistmo:datos-personales=clientes-proveedores-empleados-accionistas
-                Project=swift-sqs-connector
-                DeployedBy=azure-pipelines
-
-          # -- 03 - SQS ------------------------------------------------------
-          - task: CloudFormationCreateOrUpdateStack@1
-            displayName: '03 - SQS'
-            inputs:
-              awsCredentials: '$(awsServiceConnection)'
-              regionName: '$(awsRegion)'
-              stackName: '$(stackPrefix)-sqs'
-              templateSource: 'file'
-              templateFile: '$(templatesPath)/03-sqs.yaml'
-              templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-sqs.json'
-              onFailure: 'DELETE'
-              parametersSource: 'inline'
-              tags: |
-                banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
-                banistmo:billing-mode=unico
-                banistmo:repository=bipcld0465000-cnf-swift-int-alliance-cloud
-                banistmo:tec:environment-type=${{ parameters.environment }}
-                banistmo:application-office=14302
-                banistmo:cumplimiento=sox-bia
-                banistmo:clasificacion-disponibilidad=impacto-critico
-                banistmo:clasificacion-integridad=impacto-critico
-                banistmo:clasificacion-confidencialidad=confidencial
-                banistmo:dominio-informacion=productos-activos-financiera-riesgos-seguridad
-                banistmo:datos-personales=clientes-proveedores-empleados-accionistas
-                Project=swift-sqs-connector
-                DeployedBy=azure-pipelines
-
-          # -- 04 - IAM (depende de 01, 02, 03) ------------------------------
-          # IMPORTANTE: los stacks que crean recursos IAM con nombre requieren
-          # reconocer la capability CAPABILITY_NAMED_IAM, o el deploy falla.
-          - task: CloudFormationCreateOrUpdateStack@1
-            displayName: '04 - IAM'
-            inputs:
-              awsCredentials: '$(awsServiceConnection)'
-              regionName: '$(awsRegion)'
-              stackName: '$(stackPrefix)-iam'
-              templateSource: 'file'
-              templateFile: '$(templatesPath)/04-iam.yaml'
-              onFailure: 'DELETE'
-              capabilities: 'CAPABILITY_NAMED_IAM'
-              templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-iam.json'
-              tags: |
-                banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
-                banistmo:billing-mode=unico
-                banistmo:repository=bipcld0465000-cnf-swift-int-alliance-cloud
-                banistmo:tec:environment-type=${{ parameters.environment }}
-                banistmo:application-office=14302
-                banistmo:cumplimiento=sox-bia
-                banistmo:clasificacion-disponibilidad=impacto-critico
-                banistmo:clasificacion-integridad=impacto-critico
-                banistmo:clasificacion-confidencialidad=confidencial
-                banistmo:dominio-informacion=productos-activos-financiera-riesgos-seguridad
-                banistmo:datos-personales=clientes-proveedores-empleados-accionistas
-                Project=swift-sqs-connector
-                DeployedBy=azure-pipelines
-
-
-          # ── 05 - S3 Deploy ──────────────────────────────────────────────
-          # Crea el bucket de artefactos donde se suben los ZIPs de las Lambdas.
-          # Debe desplegarse ANTES del empaquetado (que sube los ZIPs) y del
-          # stack 06-lambdas (que los referencia como Code S3Bucket/S3Key).
-          # El bucket lleva cifrado AES256, block public access, versioning,
-          # OwnershipControls (BucketOwnerEnforced) y policy HTTPS, requeridos
-          # por el hook Banistmo::S3Bucket.
-          - task: CloudFormationCreateOrUpdateStack@1
-            displayName: '05 - S3 Deploy'
-            inputs:
-              awsCredentials: '$(awsServiceConnection)'
-              regionName: '$(awsRegion)'
-              stackName: '$(stackPrefix)-s3-deploy'
-              templateSource: 'file'
-              templateFile: '$(templatesPath)/05-s3-deploy.yaml'
-              onFailure: 'DELETE'
-              templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-s3.json'
-              tags: |
-                banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
-                banistmo:billing-mode=unico
-                banistmo:repository=bipcld0465000-cnf-swift-int-alliance-cloud
-                banistmo:tec:environment-type=${{ parameters.environment }}
-                banistmo:application-office=14302
-                banistmo:cumplimiento=sox-bia
-                banistmo:clasificacion-disponibilidad=impacto-critico
-                banistmo:clasificacion-integridad=impacto-critico
-                banistmo:clasificacion-confidencialidad=confidencial
-                banistmo:dominio-informacion=productos-activos-financiera-riesgos-seguridad
-                banistmo:datos-personales=clientes-proveedores-empleados-accionistas
-                Project=swift-sqs-connector
-                DeployedBy=azure-pipelines
-
-          # ── Empaquetado de Lambdas ──────────────────────────────────────
-          # Genera un ZIP por cada Lambda (handler.py + shared/ + cryptography
-          # precompilada para Lambda x86_64/py3.12) y los sube al bucket de
-          # despliegue. boto3 no se incluye: ya viene en el runtime de Lambda.
-          # DEBE correr antes del stack 06-lambdas, que referencia estos ZIPs.
-          - task: AWSShellScript@1
-            displayName: 'Empaquetar y subir Lambdas a S3'
-            # env:
-            #   ART_USER: $(artifactory.viewer.user)
-            #   ART_PSW: $(artifactory.viewer.psw)
-            inputs:
-              awsCredentials: '$(awsServiceConnection)'
-              regionName: '$(awsRegion)'
-              scriptType: 'inline'
-              inlineScript: |
-                set -e
-                BUCKET="s3-0465-000-swiftint-${{ parameters.environment }}-deployment"
-                BUILD_DIR="$(Build.SourcesDirectory)/build"
-                LAMBDAS="token-refresher message-dispatcher message-poller message-sender"
-
-                # Índice PyPI en Artifactory (credenciales del group artifactory)
-                ART_BASE="$(artifactory.saas.path)"
-                ART_BASE="${ART_BASE%/}"
-                INDEX_URL="https://$(artifactory.viewer.user):$(artifactory.viewer.psw)@${ART_BASE#https://}/api/pypi/pypi-${{ parameters.environment }}-virtual/simple"
-
-                declare -A DIRMAP=(
-                  ["token-refresher"]="token_refresher"
-                  ["message-dispatcher"]="message_dispatcher"
-                  ["message-poller"]="message_poller"
-                  ["message-sender"]="message_sender"
-                )
-
-                rm -rf "$BUILD_DIR"
-                mkdir -p "$BUILD_DIR"
-
-                for LAMBDA in $LAMBDAS; do
-                  SRC_DIR="${DIRMAP[$LAMBDA]}"
-                  PKG="$BUILD_DIR/$LAMBDA"
-                  mkdir -p "$PKG"
-
-                  # 1. handler.py en la raíz del zip
-                  cp "$(Build.SourcesDirectory)/lambdas/$SRC_DIR/handler.py" "$PKG/"
-
-                  # 2. carpeta shared/
-                  cp -r "$(Build.SourcesDirectory)/shared" "$PKG/shared"
-
-                  # 3. dependencias — solo cryptography, precompilada para Lambda
-                  pip3 install \
-                    --index-url "$INDEX_URL" \
-                    --platform manylinux2014_x86_64 \
-                    --target "$PKG" \
-                    --implementation cp \
-                    --python-version 3.12 \
-                    --only-binary=:all: \
-                    cryptography==42.0.0 --quiet
-
-                  # 4. zip (handler.py en la raíz)
-                  cd "$PKG"
-                  zip -r "$BUILD_DIR/$LAMBDA.zip" . -x "*.pyc" -x "*__pycache__*" > /dev/null
-                  cd -
-
-                  # 5. subir a S3
-                  aws s3 cp "$BUILD_DIR/$LAMBDA.zip" "s3://$BUCKET/$LAMBDA.zip"
-                  echo "Subido: $LAMBDA.zip"
-
-                  # 6. forzar que la Lambda tome el ZIP nuevo (si la función ya existe)
-                  aws lambda update-function-code \
-                    --function-name "swift-sqs-${{ parameters.environment }}-$LAMBDA" \
-                    --s3-bucket "$BUCKET" \
-                    --s3-key "$LAMBDA.zip" \
-                    --publish > /dev/null \
-                    && echo "Actualizada función: swift-sqs-${{ parameters.environment }}-$LAMBDA" \
-                    || echo "Función aún no existe (primer deploy), se creará en el stack 06"
-                done
-
-
-          # ── 06 - Lambdas (depende de 01-05, requiere ZIPs en S3) ────────
-          - task: CloudFormationCreateOrUpdateStack@1
-            displayName: '06 - Lambdas'
-            inputs:
-              awsCredentials: '$(awsServiceConnection)'
-              regionName: '$(awsRegion)'
-              stackName: '$(stackPrefix)-lambdas'
-              templateSource: 'file'
-              templateFile: '$(templatesPath)/06-lambdas.yaml'
-              onFailure: 'DELETE'
-              capabilities: 'CAPABILITY_NAMED_IAM'
-              templateParametersFile: 'infrastructure/parameters/${{ parameters.environment }}-lambdas.json'
-              tags: |
-                banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
-                banistmo:billing-mode=unico
-                banistmo:repository=bipcld0465000-cnf-swift-int-alliance-cloud
-                banistmo:tec:environment-type=${{ parameters.environment }}
-                banistmo:application-office=14302
-                banistmo:cumplimiento=sox-bia
-                banistmo:clasificacion-disponibilidad=impacto-critico
-                banistmo:clasificacion-integridad=impacto-critico
-                banistmo:clasificacion-confidencialidad=confidencial
-                banistmo:dominio-informacion=productos-activos-financiera-riesgos-seguridad
-                banistmo:datos-personales=clientes-proveedores-empleados-accionistas
-                Project=swift-sqs-connector
-                DeployedBy=azure-pipelines
-
-
-          # ── 07 - EventBridge (depende de 06-lambdas) ────────────────────
-          - task: CloudFormationCreateOrUpdateStack@1
-            displayName: '07 - EventBridge'
-            inputs:
-              awsCredentials: '$(awsServiceConnection)'
-              regionName: '$(awsRegion)'
-              stackName: '$(stackPrefix)-eventbridge'
-              templateSource: 'file'
-              templateFile: '$(templatesPath)/07-eventbridge.yaml'
-              onFailure: 'DELETE'
-              tags: |
-                banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
-                banistmo:billing-mode=unico
-                banistmo:repository=bipcld0465000-cnf-swift-int-alliance-cloud
-                banistmo:tec:environment-type=${{ parameters.environment }}
-                banistmo:application-office=14302
-                banistmo:cumplimiento=sox-bia
-                banistmo:clasificacion-disponibilidad=impacto-critico
-                banistmo:clasificacion-integridad=impacto-critico
-                banistmo:clasificacion-confidencialidad=confidencial
-                banistmo:dominio-informacion=productos-activos-financiera-riesgos-seguridad
-                banistmo:datos-personales=clientes-proveedores-empleados-accionistas
-                Project=swift-sqs-connector
-                DeployedBy=azure-pipelines
-
-
-          # ── 08 - Triggers (depende de 03-sqs, 06-lambdas y colas dummy) ──
-          - task: CloudFormationCreateOrUpdateStack@1
-            displayName: '08 - Triggers'
-            inputs:
-              awsCredentials: '$(awsServiceConnection)'
-              regionName: '$(awsRegion)'
-              stackName: '$(stackPrefix)-triggers'
-              templateSource: 'file'
-              templateFile: '$(templatesPath)/08-triggers.yaml'
-              onFailure: 'DO_NOTHING'
-              tags: |
-                banistmo:application-code=bip-cld-0465-000-swift-alliance-cloud
-                banistmo:billing-mode=unico
-                banistmo:repository=bipcld0465000-cnf-swift-int-alliance-cloud
-                banistmo:tec:environment-type=${{ parameters.environment }}
-                banistmo:application-office=14302
-                banistmo:cumplimiento=sox-bia
-                banistmo:clasificacion-disponibilidad=impacto-critico
-                banistmo:clasificacion-integridad=impacto-critico
-                banistmo:clasificacion-confidencialidad=confidencial
-                banistmo:dominio-informacion=productos-activos-financiera-riesgos-seguridad
-                banistmo:datos-personales=clientes-proveedores-empleados-accionistas
-                Project=swift-sqs-connector
-                DeployedBy=azure-pipelines
-# ============================================================================
+              targetPath: '$(Build.ArtifactStagingDirectory)'
+              artifact: 'drop'
