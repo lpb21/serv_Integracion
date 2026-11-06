@@ -1,107 +1,70 @@
 # ============================================================================
-# CI — Swift SQS Connector
+# Empaquetado de las 4 Lambdas del conector SWIFT
 # ============================================================================
-# Construye, prueba y publica el artefacto. NO despliega: el despliegue por
-# ambiente (INT / QA / PROD) lo hace el release pipeline, que descarga este
-# artefacto y despliega los stacks 01 -> 08 en orden.
-#
-# Contenido del artefacto "drop":
-#   lambdas/<nombre>.zip         -> los 4 ZIPs de las Lambdas
-#   infrastructure/stacks/       -> plantillas CloudFormation
-#   infrastructure/parameters/   -> JSON de parámetros por ambiente
-#
-# El disparo es MANUAL (trigger/pr en none).
+# Genera dist/lambdas/<nombre>.zip dentro del workspace, para que el
+# ArchiveFiles posterior lo incluya en el tar.gz del artefacto.
+# Cada ZIP lleva: handler.py en la raíz + shared/ + cryptography precompilada
+# para Lambda (manylinux2014_x86_64, CPython 3.12). boto3 no se incluye:
+# ya viene en el runtime de Lambda.
+# Usa python (zipfile) en vez del binario zip, que puede no existir en
+# el agente Docker.
 # ============================================================================
 
-trigger: none
-pr: none
+parameters:
+- name: pypiVirtualRepo
+  type: string
 
-variables:
-  # Variable group con las credenciales de Artifactory (lectura de paquetes)
-  - group: Artifactory
+steps:
+- script: |
+    set -e
+    ART_BASE="$(artifactory.saas.path)"
+    ART_BASE="${ART_BASE%/}"
+    INDEX_URL="https://$(artifactory.viewer.user):$(artifactory.viewer.psw)@${ART_BASE#https://}/api/pypi/${{ parameters.pypiVirtualRepo }}/simple"
 
-pool:
-  name: 'Banistmo-Linux-Pool'
+    SRC="$(Build.Repository.LocalPath)"
+    OUT="$SRC/dist/lambdas"
+    BUILD_DIR="$(Agent.TempDirectory)/lambda-build"
+    rm -rf "$OUT" "$BUILD_DIR"
+    mkdir -p "$OUT" "$BUILD_DIR"
 
-stages:
-  - stage: CI
-    displayName: 'Build, pruebas y artefacto'
-    jobs:
-      - job: Build
-        displayName: 'Construir y publicar'
-        steps:
+    declare -A DIRMAP=(
+      ["token-refresher"]="token_refresher"
+      ["message-dispatcher"]="message_dispatcher"
+      ["message-poller"]="message_poller"
+      ["message-sender"]="message_sender"
+    )
 
-          # ── Índice PyPI de Artifactory ─────────────────────────────────
-          # Se arma una sola vez y se guarda como variable secreta para que
-          # las credenciales no aparezcan en los logs.
-          - script: |
-              ART_BASE="$(artifactory.saas.path)"
-              ART_BASE="${ART_BASE%/}"
-              echo "##vso[task.setvariable variable=INDEX_URL;issecret=true]https://$(artifactory.viewer.user):$(artifactory.viewer.psw)@${ART_BASE#https://}/api/pypi/pypi-dev-virtual/simple"
-            displayName: 'Configurar índice PyPI de Artifactory'
+    for LAMBDA in "${!DIRMAP[@]}"; do
+      PKG="$BUILD_DIR/$LAMBDA"
+      mkdir -p "$PKG"
 
-          # ── Pruebas unitarias ──────────────────────────────────────────
-          - script: |
-              set -e
-              pip3 install --index-url "$(INDEX_URL)" -r requirements.txt pytest --quiet
-              python3 -m pytest tests/unit -v
-            displayName: 'Pruebas unitarias'
+      cp "$SRC/lambdas/${DIRMAP[$LAMBDA]}/handler.py" "$PKG/"
+      cp -r "$SRC/shared" "$PKG/shared"
 
-          # ── Empaquetado de Lambdas ─────────────────────────────────────
-          # Un ZIP por Lambda: handler.py en la raíz + shared/ + cryptography
-          # precompilada para Lambda x86_64 / py3.12. boto3 no se incluye:
-          # ya viene en el runtime de Lambda.
-          - script: |
-              set -e
-              OUT="$(Build.ArtifactStagingDirectory)/lambdas"
-              BUILD_DIR="$(Build.SourcesDirectory)/build"
-              mkdir -p "$OUT"
-              rm -rf "$BUILD_DIR"
-              mkdir -p "$BUILD_DIR"
+      python -m pip install \
+        --index-url "$INDEX_URL" \
+        --platform manylinux2014_x86_64 \
+        --target "$PKG" \
+        --implementation cp \
+        --python-version 3.12 \
+        --only-binary=:all: \
+        cryptography==42.0.0 --quiet
 
-              declare -A DIRMAP=(
-                ["token-refresher"]="token_refresher"
-                ["message-dispatcher"]="message_dispatcher"
-                ["message-poller"]="message_poller"
-                ["message-sender"]="message_sender"
-              )
+      # Sin cachés de pytest/coverage dentro del ZIP
+      find "$PKG" -name "__pycache__" -type d -prune -exec rm -rf {} +
+      find "$PKG" -name "*.pyc" -delete
 
-              for LAMBDA in "${!DIRMAP[@]}"; do
-                PKG="$BUILD_DIR/$LAMBDA"
-                mkdir -p "$PKG"
+      python - "$PKG" "$OUT/$LAMBDA.zip" <<'PY'
+    import os, sys, zipfile
+    src, dst = sys.argv[1], sys.argv[2]
+    with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as z:
+        for root, _, files in os.walk(src):
+            for f in files:
+                full = os.path.join(root, f)
+                z.write(full, os.path.relpath(full, src))
+    PY
+      echo "Empaquetado: $LAMBDA.zip"
+    done
 
-                cp "$(Build.SourcesDirectory)/lambdas/${DIRMAP[$LAMBDA]}/handler.py" "$PKG/"
-                cp -r "$(Build.SourcesDirectory)/shared" "$PKG/shared"
-
-                pip3 install \
-                  --index-url "$(INDEX_URL)" \
-                  --platform manylinux2014_x86_64 \
-                  --target "$PKG" \
-                  --implementation cp \
-                  --python-version 3.12 \
-                  --only-binary=:all: \
-                  cryptography==42.0.0 --quiet
-
-                (cd "$PKG" && zip -r "$OUT/$LAMBDA.zip" . -x "*.pyc" -x "*__pycache__*" > /dev/null)
-                echo "Empaquetado: $LAMBDA.zip"
-              done
-
-              ls -la "$OUT"
-            displayName: 'Empaquetar Lambdas'
-
-          # ── Infraestructura al artefacto ───────────────────────────────
-          - task: CopyFiles@2
-            displayName: 'Copiar plantillas y parámetros al artefacto'
-            inputs:
-              SourceFolder: 'infrastructure'
-              Contents: |
-                stacks/**
-                parameters/*.json
-              TargetFolder: '$(Build.ArtifactStagingDirectory)/infrastructure'
-
-          # ── Publicar ───────────────────────────────────────────────────
-          - task: PublishPipelineArtifact@1
-            displayName: 'Publicar artefacto drop'
-            inputs:
-              targetPath: '$(Build.ArtifactStagingDirectory)'
-              artifact: 'drop'
+    ls -la "$OUT"
+  displayName: 'Empaquetar Lambdas'
