@@ -3,7 +3,7 @@
   {"ParameterKey": "CoreInboundQueueName", "ParameterValue": "#{core_inbound_queue}#"},
   {"ParameterKey": "CoreOutboundMtQueueName", "ParameterValue": "#{core_outbound_mt_queue}#"},
   {"ParameterKey": "CoreOutboundMxQueueName", "ParameterValue": "#{core_outbound_mx_queue}#"},
-  {"ParameterKey": "banistmoclasificaciondisponibilidad", "ParameterValue": "impacto-critico"},
-  {"ParameterKey": "banistmoclasificacionintegridad", "ParameterValue": "impacto-critico"},
-  {"ParameterKey": "banistmoclasificacionconfidencialidad", "ParameterValue": "confidencial"}
+  {"ParameterKey": "banistmoclasificaciondisponibilidad", "ParameterValue": "#{clas_disponibilidad}#"},
+  {"ParameterKey": "banistmoclasificacionintegridad", "ParameterValue": "#{clas_integridad}#"},
+  {"ParameterKey": "banistmoclasificacionconfidencialidad", "ParameterValue": "#{clas_confidencialidad}#"}
 ]

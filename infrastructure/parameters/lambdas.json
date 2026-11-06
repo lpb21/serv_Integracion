@@ -1,10 +1,10 @@
 [
   {"ParameterKey": "Environment", "ParameterValue": "#{environment}#"},
   {"ParameterKey": "DeployBucketName", "ParameterValue": "s3-0465-000-swiftint-#{environment}#-deployment"},
-  {"ParameterKey": "banistmoclasificaciondisponibilidad", "ParameterValue": "impacto-critico"},
-  {"ParameterKey": "banistmoclasificacionintegridad", "ParameterValue": "impacto-critico"},
-  {"ParameterKey": "banistmoclasificacionconfidencialidad", "ParameterValue": "confidencial"},
-  {"ParameterKey": "banistmocumplimiento", "ParameterValue": "sox-bia"},
-  {"ParameterKey": "banistmodominioinformacion", "ParameterValue": "productos-activos-financiera-riesgos-seguridad"},
-  {"ParameterKey": "banistmodatospersonales", "ParameterValue": "clientes-proveedores-empleados-accionistas"}
+  {"ParameterKey": "banistmoclasificaciondisponibilidad", "ParameterValue": "#{clas_disponibilidad}#"},
+  {"ParameterKey": "banistmoclasificacionintegridad", "ParameterValue": "#{clas_integridad}#"},
+  {"ParameterKey": "banistmoclasificacionconfidencialidad", "ParameterValue": "#{clas_confidencialidad}#"},
+  {"ParameterKey": "banistmocumplimiento", "ParameterValue": "#{cumplimiento}#"},
+  {"ParameterKey": "banistmodominioinformacion", "ParameterValue": "#{dominio_informacion}#"},
+  {"ParameterKey": "banistmodatospersonales", "ParameterValue": "#{datos_personales}#"}
 ]

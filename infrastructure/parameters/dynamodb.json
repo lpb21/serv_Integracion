@@ -1,9 +1,9 @@
 [
   {"ParameterKey": "Environment", "ParameterValue": "#{environment}#"},
-  {"ParameterKey": "banistmocumplimiento", "ParameterValue": "sox-bia"},
-  {"ParameterKey": "banistmoclasificaciondisponibilidad", "ParameterValue": "impacto-critico"},
-  {"ParameterKey": "banistmoclasificacionintegridad", "ParameterValue": "impacto-critico"},
-  {"ParameterKey": "banistmoclasificacionconfidencialidad", "ParameterValue": "confidencial"},
-  {"ParameterKey": "banistmodominioinformacion", "ParameterValue": "productos-activos-financiera-riesgos-seguridad"},
-  {"ParameterKey": "banistmodatospersonales", "ParameterValue": "clientes-proveedores-empleados-accionistas"}
+  {"ParameterKey": "banistmocumplimiento", "ParameterValue": "#{cumplimiento}#"},
+  {"ParameterKey": "banistmoclasificaciondisponibilidad", "ParameterValue": "#{clas_disponibilidad}#"},
+  {"ParameterKey": "banistmoclasificacionintegridad", "ParameterValue": "#{clas_integridad}#"},
+  {"ParameterKey": "banistmoclasificacionconfidencialidad", "ParameterValue": "#{clas_confidencialidad}#"},
+  {"ParameterKey": "banistmodominioinformacion", "ParameterValue": "#{dominio_informacion}#"},
+  {"ParameterKey": "banistmodatospersonales", "ParameterValue": "#{datos_personales}#"}
 ]
