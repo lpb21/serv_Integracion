@@ -1,70 +1,186 @@
 # ============================================================================
-# Empaquetado de las 4 Lambdas del conector SWIFT
+# CI — Swift SQS Connector (bipcld0465000-cnf-swift-int-alliance-cloud)
 # ============================================================================
-# Genera dist/lambdas/<nombre>.zip dentro del workspace, para que el
-# ArchiveFiles posterior lo incluya en el tar.gz del artefacto.
-# Cada ZIP lleva: handler.py en la raíz + shared/ + cryptography precompilada
-# para Lambda (manylinux2014_x86_64, CPython 3.12). boto3 no se incluye:
-# ya viene en el runtime de Lambda.
-# Usa python (zipfile) en vez del binario zip, que puede no existir en
-# el agente Docker.
+# Basado en la plantilla corporativa azure-pipelinePYTHON_v1_GITFLOW.yml
+# (repo bipal0259000-base-pipelines-ci-docs). Construye, prueba, analiza con
+# SonarQube y publica el artefacto. NO despliega: el despliegue por ambiente
+# lo hace el release pipeline (INT / QA / PROD).
+#
+# Ajustes respecto a la plantilla base:
+#   - sonarSources: el código está en lambdas/ y shared/ (no en src/)
+#   - unitTestCommand: corre tests/unit y mide cobertura sobre lambdas/shared
+#   - paso extra: empaquetar las 4 Lambdas (ZIP con cryptography para Lambda)
+#     ANTES de armar el tar.gz, para que los ZIPs viajen en el artefacto
 # ============================================================================
 
-parameters:
-- name: pypiVirtualRepo
-  type: string
+variables:
+# variable de grupo de artifactory
+- group: Artifactory
+# Propiedad del sonarQube para indicar el directorio a analizar
+- name: sonarSources
+  value: 'lambdas,shared'
+# propiedad de sonarQube para indicar los directorios a excluir en el análisis
+- name: sonarExclusions
+  value: 'tests/**,scripts/**,resources/**,infrastructure/**'
+# propiedad de sonarQube para indicar el directorio donde se encontrara el reporte de covertura
+- name: sonarCoveragePaths
+  value: '$(System.DefaultWorkingDirectory)/coverage.xml'
+# Nombre del service connection para tarea de sonarQube
+- name: sonarQubeServiceEndpoint
+  value: 'SonarLts'
+# nombre del script de pruebas unitarias
+- name: unitTestCommand
+  value: 'coverage run --source=lambdas,shared -m pytest tests/unit && coverage xml --omit=./venv/* && mkdir coverage && cp ./coverage.xml ./coverage/coverage.xml'
+# Dependencias a instalar
+- name: path_dependencies_file
+  value: 'requirements.txt'
+# Versión que se descargará en el agente temporalmente
+- name: versionPython
+  value: '3.12'
 
-steps:
-- script: |
-    set -e
-    ART_BASE="$(artifactory.saas.path)"
-    ART_BASE="${ART_BASE%/}"
-    INDEX_URL="https://$(artifactory.viewer.user):$(artifactory.viewer.psw)@${ART_BASE#https://}/api/pypi/${{ parameters.pypiVirtualRepo }}/simple"
+resources:
+  repositories:
+    - repository: template
+      type: git
+      name: DevOps/_git/templates-yaml
+      ref: 'refs/heads/master' # siempre debemos apuntar a master
 
-    SRC="$(Build.Repository.LocalPath)"
-    OUT="$SRC/dist/lambdas"
-    BUILD_DIR="$(Agent.TempDirectory)/lambda-build"
-    rm -rf "$OUT" "$BUILD_DIR"
-    mkdir -p "$OUT" "$BUILD_DIR"
+trigger:
+  - master
+  - develop
+  - develop/*
+  - release
+  - release/*
 
-    declare -A DIRMAP=(
-      ["token-refresher"]="token_refresher"
-      ["message-dispatcher"]="message_dispatcher"
-      ["message-poller"]="message_poller"
-      ["message-sender"]="message_sender"
-    )
+name: $(date:yyyyMMdd)$(rev:.r)
 
-    for LAMBDA in "${!DIRMAP[@]}"; do
-      PKG="$BUILD_DIR/$LAMBDA"
-      mkdir -p "$PKG"
+stages:
+- stage: develop
+  variables:
+  - group: integracion
+  - group: Artifactory
+  # Repo virtual de PyPI en Artifactory para este ambiente
+  - name: pypiVirtualRepo
+    value: 'pypi-dev-virtual'
+  condition: |
+      or(
+            startsWith(variables['build.sourceBranch'], 'refs/heads/feature'),
+            startsWith(variables['build.sourceBranch'], 'refs/heads/develop'),
+            startsWith(variables['System.PullRequest.TargetBranch'], 'refs/heads/develop')
+          )
+  jobs:
+  - job: CI
+    pool:
+      name: Docker-Agents
+    workspace:
+      clean: all
+    steps:
+    - template: build_PYTHON_v1.yml@template
+      parameters:
+        sonarCoveragePaths: ${{variables.sonarCoveragePaths}}
+        sonarExclusions: ${{variables.sonarExclusions}}
+        sonarSources: ${{variables.sonarSources}}
+        sonarQubeServiceEndpoint: ${{variables.sonarQubeServiceEndpoint}}
+        unitTestCommand: ${{variables.unitTestCommand}}
+        path_dependencies_file: ${{variables.path_dependencies_file}}
+        versionPython: ${{variables.versionPython}}
+        installLZ: false
+    - template: pipelines/templates/package-lambdas.yml
+    - task: ArchiveFiles@1
+      displayName: 'Preparando artefacto a publicar'
+      inputs:
+        rootFolder: '$(Build.Repository.LocalPath)'
+        includeRootFolder: false
+        archiveType: tar
+        archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).tar.gz'
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publicando artefacto'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).tar.gz'
+        ArtifactName: artifact
 
-      cp "$SRC/lambdas/${DIRMAP[$LAMBDA]}/handler.py" "$PKG/"
-      cp -r "$SRC/shared" "$PKG/shared"
+- stage: release
+  variables:
+  - group: calidad
+  - group: Artifactory
+  - name: pypiVirtualRepo
+    value: 'pypi-qa-virtual'   # CONFIRMAR nombre con DevOps
+  condition: |
+    or(
+          startsWith(variables['build.sourceBranch'], 'refs/heads/bugfix'),
+          startsWith(variables['build.sourceBranch'], 'refs/heads/release'),
+          startsWith(variables['System.PullRequest.TargetBranch'], 'refs/heads/release')
+        )
+  jobs:
+  - job: CI
+    pool:
+      name: Docker-Agents
+    workspace:
+      clean: all
+    steps:
+    - template: build_PYTHON_v1.yml@template
+      parameters:
+        sonarCoveragePaths: ${{variables.sonarCoveragePaths}}
+        sonarExclusions: ${{variables.sonarExclusions}}
+        sonarSources: ${{variables.sonarSources}}
+        sonarQubeServiceEndpoint: ${{variables.sonarQubeServiceEndpoint}}
+        unitTestCommand: ${{variables.unitTestCommand}}
+        path_dependencies_file: ${{variables.path_dependencies_file}}
+        versionPython: ${{variables.versionPython}}
+        installLZ: false
+    - template: pipelines/templates/package-lambdas.yml
+    - task: ArchiveFiles@1
+      displayName: 'Preparando artefacto a publicar'
+      inputs:
+        rootFolder: '$(Build.Repository.LocalPath)'
+        includeRootFolder: false
+        archiveType: tar
+        archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).tar.gz'
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publicando artefacto'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).tar.gz'
+        ArtifactName: artifact
 
-      python -m pip install \
-        --index-url "$INDEX_URL" \
-        --platform manylinux2014_x86_64 \
-        --target "$PKG" \
-        --implementation cp \
-        --python-version 3.12 \
-        --only-binary=:all: \
-        cryptography==42.0.0 --quiet
-
-      # Sin cachés de pytest/coverage dentro del ZIP
-      find "$PKG" -name "__pycache__" -type d -prune -exec rm -rf {} +
-      find "$PKG" -name "*.pyc" -delete
-
-      python - "$PKG" "$OUT/$LAMBDA.zip" <<'PY'
-    import os, sys, zipfile
-    src, dst = sys.argv[1], sys.argv[2]
-    with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as z:
-        for root, _, files in os.walk(src):
-            for f in files:
-                full = os.path.join(root, f)
-                z.write(full, os.path.relpath(full, src))
-    PY
-      echo "Empaquetado: $LAMBDA.zip"
-    done
-
-    ls -la "$OUT"
-  displayName: 'Empaquetar Lambdas'
+- stage: master
+  variables:
+  - group: produccion
+  - group: Artifactory-produccion
+  - name: pypiVirtualRepo
+    value: 'pypi-prod-virtual'   # CONFIRMAR nombre con DevOps
+  condition: |
+    or(
+          startsWith(variables['build.sourceBranch'], 'refs/heads/hotfix'),
+          eq(variables['build.sourceBranch'], 'refs/heads/master'),
+          startsWith(variables['System.PullRequest.TargetBranch'], 'refs/heads/master')
+        )
+  jobs:
+  - job: CI
+    pool:
+      name: Docker-Agents
+    workspace:
+      clean: all
+    steps:
+    - template: build_PYTHON_v1.yml@template
+      parameters:
+        sonarCoveragePaths: ${{variables.sonarCoveragePaths}}
+        sonarExclusions: ${{variables.sonarExclusions}}
+        sonarSources: ${{variables.sonarSources}}
+        sonarQubeServiceEndpoint: ${{variables.sonarQubeServiceEndpoint}}
+        unitTestCommand: ${{variables.unitTestCommand}}
+        path_dependencies_file: ${{variables.path_dependencies_file}}
+        versionPython: ${{variables.versionPython}}
+        installLZ: false
+    - template: pipelines/templates/package-lambdas.yml
+    - task: ArchiveFiles@1
+      displayName: 'Preparando artefacto a publicar'
+      inputs:
+        rootFolder: '$(Build.Repository.LocalPath)'
+        includeRootFolder: false
+        archiveType: tar
+        archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).tar.gz'
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publicando artefacto'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).tar.gz'
+        ArtifactName: artifact

@@ -1,0 +1,69 @@
+# ============================================================================
+# Empaquetado de las 4 Lambdas del conector SWIFT
+# ============================================================================
+# Genera dist/lambdas/<nombre>.zip dentro del workspace, para que el
+# ArchiveFiles posterior lo incluya en el tar.gz del artefacto.
+# Cada ZIP lleva: handler.py en la raíz + shared/ + cryptography precompilada
+# para Lambda (manylinux2014_x86_64, CPython 3.12). boto3 no se incluye:
+# ya viene en el runtime de Lambda.
+# Usa python (zipfile) en vez del binario zip, que puede no existir en
+# el agente Docker.
+# ============================================================================
+
+# Lee la variable pypiVirtualRepo definida en cada stage del
+# azure-pipelines.yml (pypi-dev-virtual / pypi-qa-virtual / ...).
+
+steps:
+- script: |
+    set -e
+    ART_BASE="$(artifactory.saas.path)"
+    ART_BASE="${ART_BASE%/}"
+    INDEX_URL="https://$(artifactory.viewer.user):$(artifactory.viewer.psw)@${ART_BASE#https://}/api/pypi/$(pypiVirtualRepo)/simple"
+
+    SRC="$(Build.Repository.LocalPath)"
+    OUT="$SRC/dist/lambdas"
+    BUILD_DIR="$(Agent.TempDirectory)/lambda-build"
+    rm -rf "$OUT" "$BUILD_DIR"
+    mkdir -p "$OUT" "$BUILD_DIR"
+
+    declare -A DIRMAP=(
+      ["token-refresher"]="token_refresher"
+      ["message-dispatcher"]="message_dispatcher"
+      ["message-poller"]="message_poller"
+      ["message-sender"]="message_sender"
+    )
+
+    for LAMBDA in "${!DIRMAP[@]}"; do
+      PKG="$BUILD_DIR/$LAMBDA"
+      mkdir -p "$PKG"
+
+      cp "$SRC/lambdas/${DIRMAP[$LAMBDA]}/handler.py" "$PKG/"
+      cp -r "$SRC/shared" "$PKG/shared"
+
+      python -m pip install \
+        --index-url "$INDEX_URL" \
+        --platform manylinux2014_x86_64 \
+        --target "$PKG" \
+        --implementation cp \
+        --python-version 3.12 \
+        --only-binary=:all: \
+        cryptography==42.0.0 --quiet
+
+      # Sin cachés de pytest/coverage dentro del ZIP
+      find "$PKG" -name "__pycache__" -type d -prune -exec rm -rf {} +
+      find "$PKG" -name "*.pyc" -delete
+
+      python - "$PKG" "$OUT/$LAMBDA.zip" <<'PY'
+    import os, sys, zipfile
+    src, dst = sys.argv[1], sys.argv[2]
+    with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as z:
+        for root, _, files in os.walk(src):
+            for f in files:
+                full = os.path.join(root, f)
+                z.write(full, os.path.relpath(full, src))
+    PY
+      echo "Empaquetado: $LAMBDA.zip"
+    done
+
+    ls -la "$OUT"
+  displayName: 'Empaquetar Lambdas'
